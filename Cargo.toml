@@ -1,0 +1,10 @@
+[package]
+name = "ceramic"
+version = "0.1.0"
+authors = ["cryscan <cryscan@umich.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+amethyst = {version = "0.13.2", features = ["vulkan"]}
