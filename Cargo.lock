@@ -609,6 +609,8 @@ name = "ceramic"
 version = "0.1.0"
 dependencies = [
  "amethyst",
+ "derive-new",
+ "ron",
  "serde",
 ]
 

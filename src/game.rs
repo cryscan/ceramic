@@ -1,5 +1,6 @@
 use amethyst::prelude::*;
 
+#[derive(new)]
 pub struct GameState;
 
 impl SimpleState for GameState {

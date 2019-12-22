@@ -1,20 +1,12 @@
 use amethyst::{
-    assets::{
-        AssetStorage, Completion, Handle, Loader, Prefab, PrefabLoader, ProgressCounter, RonFormat,
-    },
+    assets::{Completion, Handle, Prefab, PrefabLoader, ProgressCounter, RonFormat},
     core::{math::Vector3, Transform},
-    prelude::{Builder, GameData, SimpleState, SimpleTrans, StateData, Trans, World, WorldExt},
+    prelude::*,
     renderer::{
         Camera,
-        light::{DirectionalLight, Light},
-        mtl::{Material, MaterialDefaults},
-        palette::{Srgb, Srgba},
-        rendy::{
-            mesh::{Normal, Position, Tangent, TexCoord},
-            texture::palette::load_from_srgba,
-        },
+        rendy::mesh::{Normal, Position, Tangent, TexCoord},
     },
-    utils::scene::BasicScenePrefab,
+    utils::{auto_fov::AutoFov, scene::BasicScenePrefab},
 };
 
 use crate::game::GameState;
@@ -25,6 +17,7 @@ pub type ScenePrefab = BasicScenePrefab<VertexFormat>;
 #[derive(Default)]
 pub struct LoadState {
     progress: ProgressCounter,
+    scene: Option<Handle<Prefab<ScenePrefab>>>,
 }
 
 impl SimpleState for LoadState {
@@ -32,8 +25,11 @@ impl SimpleState for LoadState {
         print!("Loading.");
         self.create_camera(data.world);
 
-        let sphere_handle = self.load_scene(data.world, "prefabs/sphere.ron");
-        data.world.create_entity().with(sphere_handle).build();
+        self.scene = Some(self.load_scene(data.world, "prefabs/sphere.ron".into()));
+        data.world
+            .create_entity()
+            .with(self.scene.as_ref().unwrap().clone())
+            .build();
     }
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
@@ -53,7 +49,7 @@ impl SimpleState for LoadState {
 }
 
 impl LoadState {
-    fn create_camera(self: &Self, world: &mut World) {
+    fn create_camera(&self, world: &mut World) {
         let transform = Transform::default()
             .set_translation_xyz(2., 2., 2.)
             .face_towards(Vector3::new(0., 0., 0.), Vector3::new(0., 1., 0.))
@@ -62,15 +58,12 @@ impl LoadState {
         world
             .create_entity()
             .with(Camera::standard_3d(10., 10.))
+            .with(AutoFov::default())
             .with(transform)
             .build();
     }
 
-    fn load_scene(
-        self: &mut Self,
-        world: &mut World,
-        path: &'static str,
-    ) -> Handle<Prefab<ScenePrefab>> {
+    fn load_scene(&mut self, world: &mut World, path: String) -> Handle<Prefab<ScenePrefab>> {
         world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
             loader.load(path, RonFormat, &mut self.progress)
         })

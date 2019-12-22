@@ -1,17 +1,21 @@
+#[macro_use]
+extern crate derive_new;
+
 use amethyst::{
     assets::PrefabLoaderSystemDesc,
     core::transform::TransformBundle,
-    prelude::{Application, GameDataBuilder},
+    prelude::*,
     renderer::{
-        plugins::{RenderFlat3D, RenderShaded3D, RenderToWindow},
+        plugins::{RenderShaded3D, RenderToWindow},
         RenderingBundle,
         types::DefaultBackend,
     },
-    utils::application_root_dir,
+    utils::{application_root_dir, auto_fov::AutoFovSystem},
 };
 
 use load::LoadState;
 use load::ScenePrefab;
+
 
 mod game;
 mod load;
@@ -37,9 +41,10 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(TransformBundle::new())?
         .with_system_desc(
             PrefabLoaderSystemDesc::<ScenePrefab>::default(),
-            "scene_loader",
+            "prefab",
             &[],
-        );
+        )
+        .with(AutoFovSystem::new(), "auto_fov", &["prefab"]);
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();
