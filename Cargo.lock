@@ -77,6 +77,7 @@ dependencies = [
  "amethyst_locale",
  "amethyst_network",
  "amethyst_rendy",
+ "amethyst_tiles",
  "amethyst_ui",
  "amethyst_utils",
  "amethyst_window",
@@ -309,6 +310,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "amethyst_tiles"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3207ba370d2c43ce12948683781cd372406e274de6fc4f878804defefcb0fd1"
+dependencies = [
+ "amethyst_assets",
+ "amethyst_core",
+ "amethyst_error",
+ "amethyst_rendy",
+ "amethyst_window",
+ "bitintr",
+ "derivative",
+ "failure",
+ "fnv",
+ "glsl-layout",
+ "hibitset 0.6.2",
+ "lazy_static",
+ "log",
+ "rayon",
+ "serde",
+ "smallvec 0.6.13",
+]
+
+[[package]]
 name = "amethyst_ui"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -530,6 +555,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bitintr"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ba5a5c4df8ac8673f22698f443ef1ce3853d7f22d5a15ebf66b9a7553b173dd"
+
+[[package]]
 name = "blake2b_simd"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -578,6 +609,7 @@ name = "ceramic"
 version = "0.1.0"
 dependencies = [
  "amethyst",
+ "serde",
 ]
 
 [[package]]

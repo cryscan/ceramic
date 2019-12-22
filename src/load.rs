@@ -1,22 +1,26 @@
 use amethyst::{
-    assets::{AssetStorage, Completion, Loader, ProgressCounter},
+    assets::{
+        AssetStorage, Completion, Handle, Loader, Prefab, PrefabLoader, ProgressCounter, RonFormat,
+    },
     core::{math::Vector3, Transform},
     prelude::{Builder, GameData, SimpleState, SimpleTrans, StateData, Trans, World, WorldExt},
     renderer::{
         Camera,
         light::{DirectionalLight, Light},
-        Mesh,
         mtl::{Material, MaterialDefaults},
         palette::{Srgb, Srgba},
         rendy::{
             mesh::{Normal, Position, Tangent, TexCoord},
             texture::palette::load_from_srgba,
         },
-        shape::Shape::Sphere, Texture, types::MeshData,
     },
+    utils::scene::BasicScenePrefab,
 };
 
 use crate::game::GameState;
+
+type VertexFormat = (Vec<Position>, Vec<Normal>, Vec<Tangent>, Vec<TexCoord>);
+pub type ScenePrefab = BasicScenePrefab<VertexFormat>;
 
 #[derive(Default)]
 pub struct LoadState {
@@ -25,84 +29,50 @@ pub struct LoadState {
 
 impl SimpleState for LoadState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        println!("Loading...");
-        create_camera(data.world);
-        create_light(data.world);
-        create_sphere(data.world);
+        print!("Loading.");
+        self.create_camera(data.world);
+
+        let sphere_handle = self.load_scene(data.world, "prefabs/sphere.ron");
+        data.world.create_entity().with(sphere_handle).build();
     }
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
         match self.progress.complete() {
             Completion::Failed => Trans::Quit,
             Completion::Complete => {
+                println!();
                 println!("Assets loaded");
                 Trans::Switch(Box::new(GameState))
             }
-            Completion::Loading => Trans::None,
+            Completion::Loading => {
+                print!(".");
+                Trans::None
+            }
         }
     }
 }
 
-fn create_camera(world: &mut World) {
-    let transform = Transform::default()
-        .set_translation_xyz(10., 10., 10.)
-        .face_towards(Vector3::new(0., 0., 0.), Vector3::new(0., 1., 0.))
-        .clone();
+impl LoadState {
+    fn create_camera(self: &Self, world: &mut World) {
+        let transform = Transform::default()
+            .set_translation_xyz(2., 2., 2.)
+            .face_towards(Vector3::new(0., 0., 0.), Vector3::new(0., 1., 0.))
+            .clone();
 
-    world
-        .create_entity()
-        .with(Camera::standard_3d(10., 10.))
-        .with(transform)
-        .build();
-}
-
-fn create_light(world: &mut World) {
-    let light: Light = DirectionalLight {
-        color: Srgb::new(1., 0.6, 1.),
-        direction: Vector3::new(0., -1., -1.).normalize(),
-        intensity: 1.,
+        world
+            .create_entity()
+            .with(Camera::standard_3d(10., 10.))
+            .with(transform)
+            .build();
     }
-        .into();
-    let transform = Transform::default().set_translation_xyz(2., 4., 0.).clone();
 
-    world.create_entity().with(light).with(transform).build();
-}
-
-fn create_sphere(world: &mut World) {
-    let mesh = {
-        let loader = world.fetch::<Loader>();
-        let ref storage = world.fetch::<AssetStorage<Mesh>>();
-
-        let scale = (1., 1., 1.);
-        let data: MeshData = Sphere(32, 32)
-            .generate::<(Vec<Position>, Vec<Normal>, Vec<Tangent>, Vec<TexCoord>)>(Some(scale))
-            .into();
-        loader.load_from_data(data, (), storage)
-    };
-    let material = {
-        let loader = world.fetch::<Loader>();
-
-        let ref storage = world.fetch::<AssetStorage<Texture>>();
-        let color = Srgba::new(1., 1., 1., 1.);
-        let albedo = loader.load_from_data(load_from_srgba(color).into(), (), storage);
-
-        let ref storage = world.fetch::<AssetStorage<Material>>();
-        let material_defaults = world.fetch::<MaterialDefaults>().0.clone();
-        loader.load_from_data(
-            Material {
-                albedo,
-                ..material_defaults
-            },
-            (),
-            storage,
-        )
-    };
-    let transform = Transform::default();
-
-    world
-        .create_entity()
-        .with(mesh)
-        .with(material)
-        .with(transform)
-        .build();
+    fn load_scene(
+        self: &mut Self,
+        world: &mut World,
+        path: &'static str,
+    ) -> Handle<Prefab<ScenePrefab>> {
+        world.exec(|loader: PrefabLoader<'_, ScenePrefab>| {
+            loader.load(path, RonFormat, &mut self.progress)
+        })
+    }
 }

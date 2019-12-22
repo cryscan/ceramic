@@ -1,4 +1,5 @@
 use amethyst::{
+    assets::PrefabLoaderSystemDesc,
     core::transform::TransformBundle,
     prelude::{Application, GameDataBuilder},
     renderer::{
@@ -10,6 +11,7 @@ use amethyst::{
 };
 
 use load::LoadState;
+use load::ScenePrefab;
 
 mod game;
 mod load;
@@ -32,7 +34,12 @@ fn main() -> amethyst::Result<()> {
                 )
                 .with_plugin(RenderShaded3D::default()),
         )?
-        .with_bundle(TransformBundle::new())?;
+        .with_bundle(TransformBundle::new())?
+        .with_system_desc(
+            PrefabLoaderSystemDesc::<ScenePrefab>::default(),
+            "scene_loader",
+            &[],
+        );
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();
