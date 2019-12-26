@@ -1,16 +1,11 @@
 use amethyst::{
-    assets::{
-        AssetPrefab, Handle, Prefab, PrefabData, PrefabLoader, PrefabLoaderSystemDesc,
-        ProgressCounter,
-    },
+    assets::{AssetPrefab, Handle, Prefab, PrefabData, ProgressCounter},
     controls::ControlTagPrefab,
-    core::{bundle::SystemBundle, Transform},
+    core::Transform,
     derive::PrefabData,
     ecs::prelude::*,
     Error,
     gltf::{GltfSceneAsset, GltfSceneFormat},
-    prelude::*,
-    prelude::World,
     renderer::{camera::CameraPrefab, light::LightPrefab},
     utils::auto_fov::AutoFov,
 };

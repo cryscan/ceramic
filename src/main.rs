@@ -4,7 +4,7 @@ use amethyst::{
     controls::ArcBallControlBundle,
     core::{Transform, TransformBundle},
     gltf::GltfSceneLoaderSystemDesc,
-    input::StringBindings,
+    input::{InputBundle, StringBindings},
     prelude::*,
     renderer::{
         plugins::{RenderPbr3D, RenderSkybox, RenderToWindow},
@@ -14,12 +14,12 @@ use amethyst::{
     utils::{application_root_dir, auto_fov::AutoFovSystem},
 };
 
-use load::LoadState;
 use prefab::scene::ScenePrefab;
+use state::load::LoadState;
 
-mod game;
-mod load;
 mod prefab;
+mod state;
+mod system;
 
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(Default::default());
@@ -41,11 +41,12 @@ fn main() -> amethyst::Result<()> {
             "gltf_loader",
             &["scene_loader"],
         )
+        .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
+        .with_bundle(InputBundle::<StringBindings>::new())?
         .with_bundle(
             AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
                 .with_dep(&["gltf_loader"]),
         )?
-        .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
             "animation_control",
             "sampler_interpolation",

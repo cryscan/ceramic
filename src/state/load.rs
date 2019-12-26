@@ -1,17 +1,11 @@
 use amethyst::{
-    assets::{Completion, Handle, Prefab, PrefabLoader, ProgressCounter, RonFormat},
-    core::{math::Vector3, Transform},
+    assets::{Completion, PrefabLoader, ProgressCounter, RonFormat},
     ecs::prelude::*,
     prelude::*,
-    renderer::{
-        Camera,
-        rendy::mesh::{Normal, Position, Tangent, TexCoord},
-    },
-    utils::auto_fov::AutoFov,
 };
 
-use crate::game::GameState;
 use crate::prefab::scene::{Scene, ScenePrefab};
+use crate::state::game::GameState;
 
 #[derive(Default)]
 pub struct LoadState {
