@@ -5,6 +5,7 @@ Prefab(
             data: (
                 model: File("model/fish.glb", ()),
                 transform: (),
+                player_tag: (),
             )
         ),
         (

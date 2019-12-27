@@ -16,6 +16,7 @@ use amethyst::{
 
 use prefab::scene::ScenePrefab;
 use state::load::LoadState;
+use system::player::PlayerSystem;
 
 mod prefab;
 mod state;
@@ -31,6 +32,12 @@ fn main() -> amethyst::Result<()> {
     let assets_dir = app_root.join("assets");
 
     let game_data = GameDataBuilder::default()
+        .with_bundle(
+            RenderingBundle::<DefaultBackend>::new()
+                .with_plugin(RenderToWindow::from_config_path(display_config_path))
+                .with_plugin(RenderPbr3D::default().with_skinning())
+                .with_plugin(RenderSkybox::default()),
+        )?
         .with_system_desc(
             PrefabLoaderSystemDesc::<ScenePrefab>::default(),
             "scene_loader",
@@ -42,7 +49,6 @@ fn main() -> amethyst::Result<()> {
             &["scene_loader"],
         )
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
-        .with_bundle(InputBundle::<StringBindings>::new())?
         .with_bundle(
             AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
                 .with_dep(&["gltf_loader"]),
@@ -57,13 +63,9 @@ fn main() -> amethyst::Result<()> {
             "animation_control",
             "sampler_interpolation",
         ]))?
+        .with_bundle(InputBundle::<StringBindings>::new())?
         .with(AutoFovSystem::new(), "auto_fov", &[])
-        .with_bundle(
-            RenderingBundle::<DefaultBackend>::new()
-                .with_plugin(RenderToWindow::from_config_path(display_config_path))
-                .with_plugin(RenderPbr3D::default().with_skinning())
-                .with_plugin(RenderSkybox::default()),
-        )?;
+        .with(PlayerSystem, "player", &[]);
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();
