@@ -1,6 +1,6 @@
 use amethyst::prelude::*;
 
-use crate::prefab::scene::Scene;
+use crate::scene::Scene;
 
 pub struct GameState;
 

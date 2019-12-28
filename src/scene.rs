@@ -11,6 +11,8 @@ use amethyst::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::component::animation::Animation;
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlayerTag;
 
@@ -24,6 +26,7 @@ pub struct Scene {
 pub struct ScenePrefab {
     transform: Option<Transform>,
     model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
+    animation: Option<Animation>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,

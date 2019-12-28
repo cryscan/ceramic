@@ -9,39 +9,34 @@ use amethyst::{
     utils::tag::Tag,
 };
 
-use crate::prefab::scene::PlayerTag;
-
-#[derive(Default)]
-pub struct PlayerAnimation {
-    animation_index: usize,
-}
+use crate::{component::animation::Animation, scene::PlayerTag};
 
 #[derive(SystemDesc)]
-pub struct PlayerSystem;
+pub struct AnimationPlaySystem;
 
-impl<'a> System<'a> for PlayerSystem {
+impl<'a> System<'a> for AnimationPlaySystem {
     type SystemData = (
         Entities<'a>,
         ReadStorage<'a, AnimationSet<usize, Transform>>,
         WriteStorage<'a, AnimationControlSet<usize, Transform>>,
-        ReadStorage<'a, Tag<PlayerTag>>,
-        Write<'a, PlayerAnimation>,
+        ReadStorage<'a, Animation>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (entities, sets, mut controls, tags, player_animation) = data;
-        for (entity, set, _) in (&*entities, &sets, &tags).join() {
+        let (entities, sets, mut controls, animations) = data;
+        for (entity, set, animation) in (&*entities, &sets, &animations).join() {
             let entity: Entity = entity;
             let set: &AnimationSet<usize, Transform> = set;
+            let animation: &Animation = animation;
 
             let control = get_animation_set(&mut controls, entity).unwrap();
-            let ref index = player_animation.animation_index;
-            if control.has_animation(*index) {
-                control.toggle(*index);
+            if control.has_animation(animation.current) {
+                control.toggle(animation.current);
             } else {
-                if let Some(animation) = set.get(index) {
+                let ref current = animation.current;
+                if let Some(animation) = set.get(current) {
                     control.add_animation(
-                        *index,
+                        *current,
                         animation,
                         EndControl::Normal,
                         1.0,

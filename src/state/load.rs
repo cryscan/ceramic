@@ -4,8 +4,10 @@ use amethyst::{
     prelude::*,
 };
 
-use crate::prefab::scene::{Scene, ScenePrefab};
-use crate::state::game::GameState;
+use crate::{
+    scene::{Scene, ScenePrefab},
+    state::game::GameState,
+};
 
 #[derive(Default)]
 pub struct LoadState {

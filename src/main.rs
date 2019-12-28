@@ -14,11 +14,10 @@ use amethyst::{
     utils::{application_root_dir, auto_fov::AutoFovSystem},
 };
 
-use prefab::scene::ScenePrefab;
-use state::load::LoadState;
-use system::player::PlayerSystem;
+use crate::{scene::ScenePrefab, state::load::LoadState, system::animation::AnimationPlaySystem};
 
-mod prefab;
+mod component;
+mod scene;
 mod state;
 mod system;
 
@@ -65,7 +64,7 @@ fn main() -> amethyst::Result<()> {
         ]))?
         .with_bundle(InputBundle::<StringBindings>::new())?
         .with(AutoFovSystem::new(), "auto_fov", &[])
-        .with(PlayerSystem, "player", &[]);
+        .with(AnimationPlaySystem, "player", &[]);
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();

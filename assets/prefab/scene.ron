@@ -5,6 +5,9 @@ Prefab(
             data: (
                 model: File("model/fish.glb", ()),
                 transform: (),
+                animation: (
+                    current: 0,
+                ),
                 player_tag: (),
             )
         ),
@@ -34,19 +37,19 @@ Prefab(
             ),
         ),
         (
-                    data: (
-                        transform: (
-                            translation: (6.0, 6.0, -6.0),
-                            rotation: (0.0, 1.0, 0.0, 0.0),
-                        ),
-                        light: (
-                            light: Point((
-                                intensity: 6.0,
-                                color: (0.8, 0.0, 0.0),
-                            )),
-                        ),
-                    ),
+            data: (
+                transform: (
+                    translation: (6.0, 6.0, -6.0),
+                    rotation: (0.0, 1.0, 0.0, 0.0),
                 ),
+                light: (
+                    light: Point((
+                        intensity: 6.0,
+                        color: (0.8, 0.0, 0.0),
+                    )),
+                ),
+            ),
+        ),
         (
             data: (
                 transform: (
