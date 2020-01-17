@@ -2,14 +2,24 @@ use amethyst::{
     animation::{
         AnimationCommand, AnimationControlSet, AnimationSet, EndControl, get_animation_set,
     },
-    core::SystemDesc,
-    core::Transform,
-    derive::SystemDesc,
+    assets::PrefabData,
+    core::{SystemDesc, Transform},
+    derive::{PrefabData, SystemDesc},
     ecs::prelude::*,
-    utils::tag::Tag,
+    Error,
 };
+use serde::{Deserialize, Serialize};
 
-use crate::{component::animation::Animation, scene::PlayerTag};
+#[derive(Clone, Copy, Default, Serialize, Deserialize, PrefabData)]
+#[serde(default)]
+#[prefab(Component)]
+pub struct Animation {
+    pub current: usize,
+}
+
+impl Component for Animation {
+    type Storage = DenseVecStorage<Self>;
+}
 
 #[derive(SystemDesc)]
 pub struct AnimationPlaySystem;
@@ -22,13 +32,8 @@ impl<'a> System<'a> for AnimationPlaySystem {
         ReadStorage<'a, Animation>,
     );
 
-    fn run(&mut self, data: Self::SystemData) {
-        let (entities, sets, mut controls, animations) = data;
+    fn run(&mut self, (entities, sets, mut controls, animations): Self::SystemData) {
         for (entity, set, animation) in (&*entities, &sets, &animations).join() {
-            let entity: Entity = entity;
-            let set: &AnimationSet<usize, Transform> = set;
-            let animation: &Animation = animation;
-
             let control = get_animation_set(&mut controls, entity).unwrap();
             if control.has_animation(animation.current) {
                 control.toggle(animation.current);

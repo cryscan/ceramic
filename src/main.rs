@@ -7,7 +7,7 @@ use amethyst::{
     input::{InputBundle, StringBindings},
     prelude::*,
     renderer::{
-        plugins::{RenderPbr3D, RenderSkybox, RenderToWindow},
+        plugins::{RenderDebugLines, RenderPbr3D, RenderSkybox, RenderToWindow},
         RenderingBundle,
         types::DefaultBackend,
     },
@@ -16,7 +16,6 @@ use amethyst::{
 
 use crate::{scene::ScenePrefab, state::load::LoadState, system::animation::AnimationPlaySystem};
 
-mod component;
 mod scene;
 mod state;
 mod system;
@@ -35,6 +34,7 @@ fn main() -> amethyst::Result<()> {
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(RenderToWindow::from_config_path(display_config_path))
                 .with_plugin(RenderPbr3D::default().with_skinning())
+                .with_plugin(RenderDebugLines::default())
                 .with_plugin(RenderSkybox::default()),
         )?
         .with_system_desc(
@@ -47,11 +47,11 @@ fn main() -> amethyst::Result<()> {
             "gltf_loader",
             &["scene_loader"],
         )
-        .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(
             AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
                 .with_dep(&["gltf_loader"]),
         )?
+        .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
             "animation_control",
             "sampler_interpolation",

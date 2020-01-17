@@ -3,7 +3,7 @@ Prefab(
     entities: [
         (
             data: (
-                model: File("model/fish.glb", ()),
+                model: File("model/puffy.glb", ()),
                 transform: (),
                 animation: (
                     current: 0,

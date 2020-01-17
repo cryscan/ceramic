@@ -11,7 +11,7 @@ use amethyst::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::component::animation::Animation;
+use crate::system::animation::Animation;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlayerTag;
