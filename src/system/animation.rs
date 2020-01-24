@@ -35,13 +35,11 @@ impl<'a> System<'a> for AnimationPlaySystem {
     fn run(&mut self, (entities, sets, mut controls, animations): Self::SystemData) {
         for (entity, set, animation) in (&*entities, &sets, &animations).join() {
             let control = get_animation_set(&mut controls, entity).unwrap();
-            if control.has_animation(animation.current) {
-                control.toggle(animation.current);
-            } else {
-                let ref current = animation.current;
-                if let Some(animation) = set.get(current) {
+            if !control.has_animation(animation.current) {
+                let current = animation.current;
+                if let Some(animation) = set.get(&current) {
                     control.add_animation(
-                        *current,
+                        current,
                         animation,
                         EndControl::Normal,
                         1.0,
