@@ -46,8 +46,8 @@ Prefab(
                 ),
                 light: (
                     light: Point((
-                        intensity: 12.0,
-                        color: (0.8, 0.4, 0.4),
+                        intensity: 6.0,
+                        color: (1.0, 0.8, 0.6),
                     )),
                 ),
             ),
@@ -55,13 +55,13 @@ Prefab(
         (
             data: (
                 transform: (
-                    translation: (-2.0, 2.0, 4.0),
+                    translation: (-2.0, 4.0, 8.0),
                     rotation: (0.0, 1.0, 0.0, 0.0),
                 ),
                 light: (
                     light: Point((
-                        intensity: 8.0,
-                        color: (1.0, 0.8, 0.8),
+                        intensity: 6.0,
+                        color: (1.0, 0.8, 0.6),
                     )),
                 ),
             ),
