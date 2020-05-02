@@ -3,7 +3,7 @@ use amethyst::{
         AnimationCommand, AnimationControlSet, AnimationSet, EndControl, get_animation_set,
     },
     assets::PrefabData,
-    core::{SystemDesc, Transform},
+    core::Transform,
     derive::{PrefabData, SystemDesc},
     ecs::prelude::*,
     Error,

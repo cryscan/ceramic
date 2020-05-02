@@ -3,7 +3,7 @@ Prefab(
     entities: [
         (
             data: (
-                model: File("model/puffy.glb", ()),
+                model: File("model/cat.glb", ()),
                 transform: (),
                 animation: (
                     current: 0,
@@ -14,7 +14,9 @@ Prefab(
         (
             parent: 0,
             data: (
-                transform: (),
+                transform: (
+                    translation: (0.0, 1.0, 0.0),
+                ),
                 control_tag: (),
             ),
         ),
@@ -22,7 +24,7 @@ Prefab(
             parent: 1,
             data: (
                 transform: (
-                    translation: (0.0, 0.0, 10.0),
+                    translation: (0.0, 1.0, 8.0),
                 ),
                 camera: Perspective(
                     aspect: 1.3,
@@ -44,8 +46,8 @@ Prefab(
                 ),
                 light: (
                     light: Point((
-                        intensity: 6.0,
-                        color: (0.8, 0.0, 0.0),
+                        intensity: 12.0,
+                        color: (0.8, 0.4, 0.4),
                     )),
                 ),
             ),
@@ -53,27 +55,13 @@ Prefab(
         (
             data: (
                 transform: (
-                    translation: (6.0, 6.0, -6.0),
+                    translation: (-2.0, 2.0, 4.0),
                     rotation: (0.0, 1.0, 0.0, 0.0),
                 ),
                 light: (
                     light: Point((
-                        intensity: 6.0,
-                        color: (0.8, 0.0, 0.0),
-                    )),
-                ),
-            ),
-        ),
-        (
-            data: (
-                transform: (
-                    translation: (0.0, 4.0, 4.0),
-                    rotation: (0.0, 1.0, 0.0, 0.0),
-                ),
-                light: (
-                    light: Point((
-                        intensity: 6.0,
-                        color: (0.0, 0.3, 0.7),
+                        intensity: 8.0,
+                        color: (1.0, 0.8, 0.8),
                     )),
                 ),
             ),

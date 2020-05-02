@@ -1,6 +1,7 @@
 use amethyst::{
     assets::{Completion, PrefabLoader, ProgressCounter, RonFormat},
     ecs::prelude::*,
+    input::{ElementState, get_key, is_close_requested, StringBindings, VirtualKeyCode},
     prelude::*,
 };
 
@@ -18,6 +19,21 @@ impl SimpleState for LoadState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         print!("Loading...");
         self.load_scene(data.world, "prefab/scene.ron".into());
+    }
+
+    fn handle_event(
+        &mut self,
+        _data: StateData<'_, GameData<'_, '_>>,
+        event: StateEvent<StringBindings>)
+        -> SimpleTrans {
+        if let StateEvent::Window(event) = &event {
+            if is_close_requested(event) { return Trans::Quit; }
+            match get_key(event) {
+                Some((VirtualKeyCode::Escape, ElementState::Pressed)) => { return Trans::Quit; }
+                _ => {}
+            }
+        }
+        Trans::None
     }
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {

@@ -1,5 +1,5 @@
 use amethyst::{
-    input::{get_key, is_close_requested, is_key_down, StringBindings, VirtualKeyCode},
+    input::{ElementState, get_key, is_close_requested, StringBindings, VirtualKeyCode},
     prelude::*,
 };
 
@@ -17,14 +17,12 @@ impl SimpleState for GameState {
         &mut self,
         _data: StateData<'_, GameData<'_, '_>>,
         event: StateEvent<StringBindings>,
-    ) -> Trans<GameData<'static, 'static>, StateEvent<StringBindings>> {
+    ) -> SimpleTrans {
         if let StateEvent::Window(event) = &event {
-            if is_close_requested(event) || is_key_down(event, VirtualKeyCode::Escape) {
-                return Trans::Quit;
-            }
+            if is_close_requested(event) { return Trans::Quit; }
             match get_key(&event) {
-                Some(_) => {}
-                None => {}
+                Some((VirtualKeyCode::Escape, ElementState::Pressed)) => { return Trans::Quit; }
+                _ => {}
             }
         }
         Trans::None

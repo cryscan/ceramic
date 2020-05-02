@@ -32,7 +32,7 @@ fn main() -> amethyst::Result<()> {
     let game_data = GameDataBuilder::default()
         .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
-                .with_plugin(RenderToWindow::from_config_path(display_config_path))
+                .with_plugin(RenderToWindow::from_config_path(display_config_path)?)
                 .with_plugin(RenderPbr3D::default().with_skinning())
                 .with_plugin(RenderDebugLines::default())
                 .with_plugin(RenderSkybox::default()),
