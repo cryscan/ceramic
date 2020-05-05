@@ -1,37 +1,51 @@
 use amethyst::{
     core::{
-        math::{Point3, try_convert, UnitQuaternion, Vector3}, Parent,
-        Transform,
+        math::{Matrix4, Point3, UnitQuaternion, Vector3},
+        Parent, Transform,
     },
     derive::SystemDesc,
     ecs::prelude::*,
 };
 use itertools::{iterate, Itertools};
-use serde::{Deserialize, Serialize};
 
-pub struct IKChain {
+#[derive(Copy, Clone)]
+pub struct Chain {
     pub length: usize,
     pub target: Entity,
 }
 
-impl Component for IKChain {
+impl Component for Chain {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(SystemDesc)]
-pub struct IKSolver;
+#[derive(Default, SystemDesc)]
+pub struct KinematicsSystem;
 
-impl<'a> System<'a> for IKSolver {
+impl<'a> System<'a> for KinematicsSystem {
     type SystemData = (
         Entities<'a>,
-        ReadStorage<'a, IKChain>,
+        ReadStorage<'a, Chain>,
         WriteStorage<'a, Transform>,
         ReadStorage<'a, Parent>
     );
 
     fn run(&mut self, (entities, chains, mut transforms, parents): Self::SystemData) {
         for (entity, chain) in (&*entities, &chains).join() {
-            iterate(
+            let effector = Point3::<f32>::origin();
+            let target = {
+                let global = transforms
+                    .get(chain.target)
+                    .unwrap()
+                    .global_matrix()
+                    .transform_point(&Point3::<f32>::origin());
+                transforms
+                    .get(entity)
+                    .unwrap()
+                    .global_view_matrix()
+                    .transform_point(&global)
+            };
+
+            let entities = iterate(
                 entity,
                 |entity| {
                     parents
@@ -41,46 +55,35 @@ impl<'a> System<'a> for IKSolver {
                 })
                 .take(chain.length)
                 .skip(1)
+                .collect_vec();
+
+            entities
+                .iter()
                 .fold(
                     (
-                        Point3::<f32>::origin(),
-                        {
-                            let global = transforms
-                                .get(chain.target)
-                                .unwrap()
-                                .global_matrix()
-                                .transform_point(&Point3::<f32>::origin());
-                            transforms
-                                .get(entity)
-                                .unwrap()
-                                .global_view_matrix()
-                                .transform_point(&global)
-                        }
+                        Matrix4::<f32>::identity(),
+                        Matrix4::<f32>::identity()
                     ),
-                    |(end, target), entity| {
-                        let target = transforms
-                            .get(entity)
-                            .unwrap()
-                            .matrix()
-                            .transform_point(&target);
-                        {
-                            let transform = transforms.get_mut(entity).unwrap();
-                            let end = transform.matrix().transform_point(&end);
+                    |(effector_matrix, target_matrix), entity| {
+                        let transform = transforms.get_mut(*entity).unwrap();
 
-                            if let Some((axis, angle)) = UnitQuaternion::rotation_between(
-                                &Vector3::from(end - Point3::origin()),
-                                &Vector3::from(target - Point3::origin()),
-                            )
-                                .and_then(|rotation| rotation.axis_angle()) {
-                                transform.append_rotation(axis, angle);
-                            }
+                        let target_matrix = target_matrix * transform.matrix();
+                        let target = target_matrix.transform_point(&target);
+
+                        let effector = (effector_matrix * transform.matrix())
+                            .transform_point(&effector);
+
+                        if let Some((axis, angle)) =
+                        UnitQuaternion::rotation_between(
+                            &Vector3::from(effector - Point3::origin()),
+                            &Vector3::from(target - Point3::origin()),
+                        )
+                            .and_then(|rotation| rotation.axis_angle()) {
+                            transform.append_rotation(axis, angle);
                         }
-                        let end = transforms
-                            .get(entity)
-                            .unwrap()
-                            .matrix()
-                            .transform_point(&end);
-                        (end, target)
+
+                        let effector_matrix = effector_matrix * transform.matrix();
+                        (effector_matrix, target_matrix)
                     },
                 );
         }

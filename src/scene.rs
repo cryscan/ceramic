@@ -7,14 +7,11 @@ use amethyst::{
     Error,
     gltf::{GltfSceneAsset, GltfSceneFormat},
     renderer::{camera::CameraPrefab, light::LightPrefab},
-    utils::{auto_fov::AutoFov, tag::Tag},
+    utils::auto_fov::AutoFov,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::system::animation::Animation;
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct PlayerTag;
+use crate::system::player::Player;
 
 #[derive(Default)]
 pub struct Scene {
@@ -26,10 +23,9 @@ pub struct Scene {
 pub struct ScenePrefab {
     transform: Option<Transform>,
     model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
-    animation: Option<Animation>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
-    player_tag: Option<Tag<PlayerTag>>,
+    player: Option<Player>,
 }

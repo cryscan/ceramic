@@ -5,11 +5,7 @@ Prefab(
             data: (
                 model: File("model/cat.glb", ()),
                 transform: (),
-                animation: (
-                    current: 0,
-                ),
-                player_tag: (),
-            )
+            ),
         ),
         (
             parent: 0,
@@ -35,6 +31,17 @@ Prefab(
                 auto_fov: (
                     base_fovx: 1.361356817,
                     base_aspect_ratio: (13, 10),
+                ),
+            ),
+        ),
+        (
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (1.0, 0.0, 0.0),
+                ),
+                player: (
+                    speed: 4.0,
                 ),
             ),
         ),

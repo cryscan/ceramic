@@ -14,7 +14,11 @@ use amethyst::{
     utils::{application_root_dir, auto_fov::AutoFovSystem},
 };
 
-use crate::{scene::ScenePrefab, state::load::LoadState, system::animation::AnimationPlaySystem};
+use crate::{
+    scene::ScenePrefab,
+    state::load::LoadState,
+    system::kinematics::KinematicsSystem};
+use crate::system::player::PlayerSystem;
 
 mod scene;
 mod state;
@@ -27,7 +31,17 @@ fn main() -> amethyst::Result<()> {
 
     let config_dir = app_root.join("config");
     let display_config_path = config_dir.join("display.ron");
+    let bindings_path = config_dir.join("bindings.ron");
     let assets_dir = app_root.join("assets");
+
+    let animation_bundle = AnimationBundle::<usize, Transform>::new(
+        "animation_control",
+        "sampler_interpolation",
+    )
+        .with_dep(&["gltf_loader", "kinematics"]);
+
+    let input_bundle = InputBundle::<StringBindings>::new()
+        .with_bindings_from_file(bindings_path)?;
 
     let game_data = GameDataBuilder::default()
         .with_bundle(
@@ -47,24 +61,24 @@ fn main() -> amethyst::Result<()> {
             "gltf_loader",
             &["scene_loader"],
         )
-        .with_bundle(
-            AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
-                .with_dep(&["gltf_loader"]),
-        )?
+        .with(PlayerSystem::default(), "player", &[])
+        .with(KinematicsSystem::default(), "kinematics", &[])
+        .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
             "animation_control",
             "sampler_interpolation",
             "free_rotation",
+            "player",
+            "kinematics",
         ]))?
         .with_bundle(VertexSkinningBundle::new().with_dep(&[
             "transform_system",
             "animation_control",
             "sampler_interpolation",
         ]))?
-        .with_bundle(InputBundle::<StringBindings>::new())?
-        .with(AutoFovSystem::new(), "auto_fov", &[])
-        .with(AnimationPlaySystem, "player", &[]);
+        .with_bundle(input_bundle)?
+        .with(AutoFovSystem::new(), "auto_fov", &[]);
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();
