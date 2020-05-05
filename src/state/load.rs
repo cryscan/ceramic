@@ -17,7 +17,7 @@ pub struct LoadState {
 
 impl SimpleState for LoadState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        print!("Loading...");
+        println!("Loading...");
         self.load_scene(data.world, "prefab/scene.ron".into());
     }
 
@@ -40,7 +40,6 @@ impl SimpleState for LoadState {
         match self.progress.complete() {
             Completion::Failed => Trans::Quit,
             Completion::Complete => {
-                println!();
                 println!("Assets loaded");
                 Trans::Switch(Box::new(GameState))
             }
