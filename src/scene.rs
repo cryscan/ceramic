@@ -1,7 +1,7 @@
 use amethyst::{
     assets::{AssetPrefab, Handle, Prefab, PrefabData, ProgressCounter},
     controls::ControlTagPrefab,
-    core::Transform,
+    core::{Named, Transform},
     derive::PrefabData,
     ecs::prelude::*,
     Error,
@@ -11,7 +11,10 @@ use amethyst::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::system::player::Player;
+use crate::system::{
+    kinematics::ChainPrefab,
+    player::Player,
+};
 
 #[derive(Default)]
 pub struct Scene {
@@ -22,10 +25,12 @@ pub struct Scene {
 #[serde(default)]
 pub struct ScenePrefab {
     transform: Option<Transform>,
+    name: Option<Named>,
     model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
+    player: Option<Player>,
+    chain: Option<ChainPrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
-    player: Option<Player>,
 }

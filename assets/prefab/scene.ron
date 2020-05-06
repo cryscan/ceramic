@@ -38,10 +38,48 @@ Prefab(
             data: (
                 model: File("model/cube.glb", ()),
                 transform: (
-                    translation: (1.0, 0.0, 0.0),
+                    translation: (3.0, 1.0, 0.0),
                 ),
-                player: (
-                    speed: 4.0,
+                player: (speed: 4.0),
+            ),
+        ),
+        (
+            parent: 0,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (2.0, 2.0, 0.0),
+                ),
+            )
+        ),
+        (
+            parent: 4,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.0, -1.0, 0.0),
+                ),
+            ),
+        ),
+        (
+            parent: 5,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.0, -1.0, 0.0),
+                ),
+            ),
+        ),
+        (
+            parent: 6,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.0, -1.0, 0.0),
+                ),
+                chain: (
+                    length: 4,
+                    target: 3,
                 ),
             ),
         ),
