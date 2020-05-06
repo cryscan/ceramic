@@ -61,34 +61,30 @@ impl KinematicsSystem {
         entities: &Vec<Entity>,
         transforms: &mut WriteStorage<'_, Transform>,
     ) -> f32 {
-        let end = Point3::<f32>::origin();
-        let target = {
-            let global = transforms.get(chain.target).unwrap()
+        let mut end: Point3<f32> = Point3::origin();
+        let mut target: Point3<f32> = {
+            let target = transforms.get(chain.target).unwrap()
                 .global_matrix()
-                .transform_point(&Point3::<f32>::origin());
+                .transform_point(&Point3::origin());
             transforms.get(entity).unwrap()
                 .global_view_matrix()
-                .transform_point(&global)
+                .transform_point(&target)
         };
 
-        let (end, target) = entities.iter()
-            .fold(
-                (end, target),
-                |(end, target), entity| {
-                    let transform = transforms.get_mut(*entity).unwrap();
-                    let target = transform.matrix().transform_point(&target);
-                    {
-                        let end = transform.matrix().transform_point(&end);
-                        if let Some((axis, angle)) =
-                        UnitQuaternion::rotation_between(&end.coords, &target.coords)
-                            .and_then(|rotation| rotation.axis_angle()) {
-                            transform.prepend_rotation(axis, angle);
-                        }
-                    }
-                    let end = transform.matrix().transform_point(&end);
-                    (end, target)
-                },
-            );
+        for (&first, &second) in entities.iter().tuple_windows() {
+            {
+                let transform = transforms.get(first).unwrap();
+                end = transform.matrix().transform_point(&end);
+                target = transform.matrix().transform_point(&target);
+            }
+            if let Some((axis, angle)) =
+            UnitQuaternion::rotation_between(&end.coords, &target.coords)
+                .and_then(|rotation| rotation.axis_angle()) {
+                let transform = transforms.get_mut(second).unwrap();
+                transform.append_rotation(axis, angle);
+                target = UnitQuaternion::from_axis_angle(&axis, -angle).transform_point(&target);
+            }
+        }
 
         Vector3::from(end - target).norm_squared()
     }
@@ -116,20 +112,18 @@ impl<'a> System<'a> for KinematicsSystem {
                 .take(chain.length)
                 .collect_vec();
 
-            entities.iter().skip(1)
-                .fold(entity, |prev, &entity| {
-                    let start = transforms.get(entity).unwrap()
-                        .global_matrix()
-                        .transform_point(&Point3::origin());
-                    let end = transforms.get(prev).unwrap()
-                        .global_matrix()
-                        .transform_point(&Point3::origin());
-                    let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
-                    debug_lines.draw_line(start, end, color);
-                    entity
-                });
+            for (&start, &end) in entities.iter().tuple_windows() {
+                let start = transforms.get(start).unwrap()
+                    .global_matrix()
+                    .transform_point(&Point3::origin());
+                let end = transforms.get(end).unwrap()
+                    .global_matrix()
+                    .transform_point(&Point3::origin());
+                let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
+                debug_lines.draw_line(start, end, color);
+            }
 
-            self.update(entity, chain, &entities, &mut transforms);
+            self.update(entity, chain, &entities.iter().map(Clone::clone).collect_vec(), &mut transforms);
         }
     }
 }
