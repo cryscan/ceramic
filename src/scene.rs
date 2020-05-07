@@ -12,7 +12,7 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
-    kinematics::ChainPrefab,
+    kinematics::{Binder, ChainPrefab},
     player::Player,
 };
 
@@ -28,6 +28,7 @@ pub struct ScenePrefab {
     name: Option<Named>,
     model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
     player: Option<Player>,
+    binder: Option<Binder>,
     chain: Option<ChainPrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,

@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use amethyst::{
     assets::PrefabData,
     core::{
-        math::{Point3, UnitQuaternion, Vector3},
+        math::{Point3, UnitQuaternion},
         Named, Parent, Transform,
     },
-    derive::SystemDesc,
+    derive::{PrefabData, SystemDesc},
     ecs::prelude::*,
     Error,
     renderer::{
@@ -27,29 +27,14 @@ impl Component for Chain {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone)]
-pub struct ChainBinder {
-    pub length: usize,
-    pub target: Entity,
-    pub name: Cow<'static, str>,
-}
-
-impl Component for ChainBinder {
-    type Storage = DenseVecStorage<Self>;
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChainPrefab {
     length: usize,
     target: usize,
-    name: Option<Cow<'static, str>>,
 }
 
 impl<'a> PrefabData<'a> for ChainPrefab {
-    type SystemData = (
-        WriteStorage<'a, Chain>,
-        WriteStorage<'a, ChainBinder>
-    );
+    type SystemData = WriteStorage<'a, Chain>;
     type Result = ();
 
     fn add_to_entity(
@@ -59,114 +44,39 @@ impl<'a> PrefabData<'a> for ChainPrefab {
         entities: &[Entity],
         _: &[Entity],
     ) -> Result<Self::Result, Error> {
-        match &self.name {
-            None => {
-                let chain = Chain {
-                    length: self.length,
-                    target: entities[self.target],
-                };
-                data.0.insert(entity, chain).map(|_| ()).map_err(Into::into)
-            }
-            Some(name) => {
-                let chain_binder = ChainBinder {
-                    length: self.length,
-                    target: entities[self.target],
-                    name: name.clone(),
-                };
-                data.1.insert(entity, chain_binder).map(|_| ()).map_err(Into::into)
-            }
-        }
+        let chain = Chain {
+            length: self.length,
+            target: entities[self.target],
+        };
+        data.insert(entity, chain).map(|_| ()).map_err(Into::into)
     }
 }
 
-pub fn bind_chains(data: (Entities, ReadStorage<Named>, ReadStorage<ChainBinder>, WriteStorage<Chain>)) {
-    let (entities, names, binders, mut chains) = data;
-    for (entity, binder) in (&*entities, &binders).join() {
-        for (entity, name) in (&*entities, &names).join() {
-            if name.name == binder.name {
-                let chain = Chain {
-                    length: binder.length,
-                    target: binder.target,
-                };
-                chains.insert(entity, chain).map(|_| ()).unwrap_or(());
-            }
-        }
-        entities.delete(entity).unwrap();
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
+#[prefab(Component)]
+pub struct Binder {
+    pub name: Cow<'static, str>,
+}
+
+impl Component for Binder {
+    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Default, SystemDesc)]
 pub struct KinematicsSystem;
 
-impl KinematicsSystem {
-    fn global_position(
-        entity: Entity,
-        transforms: &WriteStorage<Transform>,
-    ) -> Point3<f32> {
-        transforms
-            .get(entity)
-            .unwrap()
-            .global_matrix()
-            .transform_point(&Point3::origin())
-    }
-
-    fn local_position(
-        entity: Entity,
-        transforms: &WriteStorage<Transform>,
-        global: &Point3<f32>,
-    ) -> Point3<f32> {
-        transforms
-            .get(entity)
-            .unwrap()
-            .global_view_matrix()
-            .transform_point(global)
-    }
-
-    fn update(
-        &self,
-        entity: Entity,
-        chain: &Chain,
-        entities: &Vec<Entity>,
-        transforms: &mut WriteStorage<Transform>,
-    ) -> f32 {
-        let mut end = Point3::<f32>::origin();
-        let mut target = Self::local_position(entity, transforms, &Self::global_position(chain.target, transforms));
-
-        for (first, second) in entities.iter().tuple_windows() {
-            let matrix = transforms
-                .get(*first)
-                .unwrap()
-                .matrix();
-            end = matrix.transform_point(&end);
-            target = matrix.transform_point(&target);
-
-            if let Some((axis, angle)) =
-            UnitQuaternion::rotation_between(&end.coords, &target.coords)
-                .and_then(|rotation| rotation.axis_angle()) {
-                transforms
-                    .get_mut(*second)
-                    .unwrap()
-                    .append_rotation(axis, angle);
-                target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                    .transform_point(&target);
-            }
-        }
-
-        Vector3::from(end - target).norm_squared()
-    }
-}
-
 impl<'a> System<'a> for KinematicsSystem {
     type SystemData = (
         Entities<'a>,
-        ReadStorage<'a, Chain>,
-        WriteStorage<'a, Transform>,
         ReadStorage<'a, Parent>,
+        WriteStorage<'a, Transform>,
+        ReadStorage<'a, Binder>,
+        ReadStorage<'a, Chain>,
         Write<'a, DebugLines>,
     );
 
-    fn run(&mut self, (entities, chains, mut transforms, parents, mut debug_lines): Self::SystemData) {
-        for (entity, chain) in (&*entities, &chains).join() {
+    fn run(&mut self, (entities, parents, mut transforms, binders, chains, mut debug_lines): Self::SystemData) {
+        for (entity, chain, _) in (&*entities, &chains, !&binders).join() {
             let entities = iterate(
                 entity,
                 |entity| {
@@ -178,14 +88,71 @@ impl<'a> System<'a> for KinematicsSystem {
                 .take(chain.length)
                 .collect_vec();
 
+            let global_position = |entity| transforms
+                .get(entity)
+                .unwrap()
+                .global_matrix()
+                .transform_point(&Point3::<f32>::origin());
+
+            let local_position = |entity, global| transforms
+                .get(entity)
+                .unwrap()
+                .global_view_matrix()
+                .transform_point(global);
+
             for (start, end) in entities.iter().tuple_windows() {
-                let start = Self::global_position(*start, &transforms);
-                let end = Self::global_position(*end, &transforms);
+                let start = global_position(*start);
+                let end = global_position(*end);
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
 
-            self.update(entity, chain, &entities, &mut transforms);
+            let mut end = Point3::<f32>::origin();
+            let mut target = local_position(entity, &global_position(chain.target));
+
+            for (entity, parent) in entities.iter().tuple_windows() {
+                let transform = |point| transforms
+                    .get(*entity)
+                    .unwrap()
+                    .matrix()
+                    .transform_point(&point);
+                end = transform(end);
+                target = transform(target);
+
+                if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
+                    .and_then(|rotation| rotation.axis_angle()) {
+                    transforms
+                        .get_mut(*parent)
+                        .unwrap()
+                        .append_rotation(axis, angle);
+                    target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                        .transform_point(&target);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Default, SystemDesc)]
+pub struct BinderSystem;
+
+impl<'a> System<'a> for BinderSystem {
+    type SystemData = (
+        Entities<'a>,
+        ReadStorage<'a, Binder>,
+        ReadStorage<'a, Named>,
+        WriteStorage<'a, Chain>,
+    );
+
+    fn run(&mut self, (entities, binders, names, mut chains): Self::SystemData) {
+        for (entity, binder) in (&*entities, &binders).join() {
+            let chain = chains.get(entity).cloned();
+            for (entity, name) in (&*entities, &names).join() {
+                if binder.name == name.name {
+                    if let Some(chain) = chain { chains.insert(entity, chain).unwrap(); }
+                }
+            }
+            entities.delete(entity).unwrap();
         }
     }
 }

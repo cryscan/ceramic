@@ -49,6 +49,8 @@ Prefab(
                 chain: (
                     length: 4,
                     target: 3,
+                ),
+                binder: (
                     name: "DEF-r_toe.L",
                 ),
             ),

@@ -17,7 +17,8 @@ use amethyst::{
 use crate::{
     scene::ScenePrefab,
     state::load::LoadState,
-    system::kinematics::KinematicsSystem};
+    system::kinematics::{BinderSystem, KinematicsSystem},
+};
 use crate::system::player::PlayerSystem;
 
 mod scene;
@@ -62,7 +63,8 @@ fn main() -> amethyst::Result<()> {
             &["scene_loader"],
         )
         .with(PlayerSystem::default(), "player", &[])
-        .with(KinematicsSystem::default(), "kinematics", &[])
+        .with(BinderSystem::default(), "binder", &[])
+        .with(KinematicsSystem::default(), "kinematics", &["binder"])
         .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
