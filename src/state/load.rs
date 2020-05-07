@@ -1,5 +1,5 @@
 use amethyst::{
-    assets::{Completion, PrefabLoader, ProgressCounter, RonFormat},
+    assets::{Completion, Handle, Prefab, PrefabLoader, ProgressCounter, RonFormat},
     ecs::prelude::*,
     input::{ElementState, get_key, is_close_requested, StringBindings, VirtualKeyCode},
     prelude::*,
@@ -18,7 +18,8 @@ pub struct LoadState {
 impl SimpleState for LoadState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         println!("Loading...");
-        self.load_scene(data.world, "prefab/scene.ron".into());
+        let handle = self.load_scene(data.world, "prefab/scene.ron".into());
+        data.world.create_entity().with(handle).build();
     }
 
     fn handle_event(
@@ -49,11 +50,12 @@ impl SimpleState for LoadState {
 }
 
 impl LoadState {
-    fn load_scene(&mut self, world: &mut World, path: String) {
+    fn load_scene(&mut self, world: &mut World, path: String) -> Handle<Prefab<ScenePrefab>> {
         world.exec(
             |(loader, mut scene): (PrefabLoader<'_, ScenePrefab>, Write<'_, Scene>)| {
                 let handle = loader.load(path, RonFormat, &mut self.progress);
-                scene.handle = Some(handle);
+                scene.handle = Some(handle.clone());
+                handle
             },
         )
     }

@@ -3,14 +3,13 @@ use amethyst::{
     prelude::*,
 };
 
-use crate::scene::Scene;
+use crate::system::kinematics::bind_chains;
 
 pub struct GameState;
 
 impl SimpleState for GameState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        let scene_handle = data.world.fetch::<Scene>().handle.as_ref().unwrap().clone();
-        data.world.create_entity().with(scene_handle).build();
+        data.world.exec(bind_chains);
     }
 
     fn handle_event(
