@@ -38,7 +38,7 @@ Prefab(
             data: (
                 model: File("model/cube.glb", ()),
                 transform: (
-                    translation: (1.0, 0.0, -1.0),
+                    translation: (0.6, 0.2, -0.8),
                 ),
                 player: (speed: 4.0),
                 name: (name: "player"),

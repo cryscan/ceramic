@@ -81,7 +81,7 @@ impl<'a> PrefabData<'a> for ChainPrefab {
 
 pub fn bind_chains(data: (Entities, ReadStorage<Named>, ReadStorage<ChainBinder>, WriteStorage<Chain>)) {
     let (entities, names, binders, mut chains) = data;
-    for binder in (&binders).join() {
+    for (entity, binder) in (&*entities, &binders).join() {
         for (entity, name) in (&*entities, &names).join() {
             if name.name == binder.name {
                 let chain = Chain {
@@ -91,6 +91,7 @@ pub fn bind_chains(data: (Entities, ReadStorage<Named>, ReadStorage<ChainBinder>
                 chains.insert(entity, chain).map(|_| ()).unwrap_or(());
             }
         }
+        entities.delete(entity).unwrap();
     }
 }
 
@@ -101,20 +102,12 @@ impl KinematicsSystem {
     fn global_position(
         entity: Entity,
         transforms: &WriteStorage<Transform>,
-        local: &Point3<f32>,
     ) -> Point3<f32> {
         transforms
             .get(entity)
             .unwrap()
             .global_matrix()
-            .transform_point(local)
-    }
-
-    fn global_position_origin(
-        entity: Entity,
-        transforms: &WriteStorage<Transform>,
-    ) -> Point3<f32> {
-        Self::global_position(entity, transforms, &Point3::origin())
+            .transform_point(&Point3::origin())
     }
 
     fn local_position(
@@ -137,10 +130,7 @@ impl KinematicsSystem {
         transforms: &mut WriteStorage<Transform>,
     ) -> f32 {
         let mut end = Point3::<f32>::origin();
-        let mut target = {
-            let global = Self::global_position_origin(chain.target, transforms);
-            Self::local_position(entity, transforms, &global)
-        };
+        let mut target = Self::local_position(entity, transforms, &Self::global_position(chain.target, transforms));
 
         for (first, second) in entities.iter().tuple_windows() {
             let matrix = transforms
@@ -189,8 +179,8 @@ impl<'a> System<'a> for KinematicsSystem {
                 .collect_vec();
 
             for (start, end) in entities.iter().tuple_windows() {
-                let start = Self::global_position_origin(*start, &transforms);
-                let end = Self::global_position_origin(*end, &transforms);
+                let start = Self::global_position(*start, &transforms);
+                let end = Self::global_position(*end, &transforms);
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
