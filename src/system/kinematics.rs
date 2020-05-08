@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ops::Neg;
 
 use amethyst::{
     assets::PrefabData,
@@ -56,6 +57,7 @@ impl<'a> PrefabData<'a> for ChainPrefab {
 #[prefab(Component)]
 pub struct Hinge {
     axis: Option<Vector3<f32>>,
+    limit: Option<(f32, f32)>,
 }
 
 impl Component for Hinge {
@@ -158,6 +160,7 @@ impl<'a> System<'a> for KinematicsSystem {
                         .transform_point(&target);
                 }
 
+                // Auto-derive hinge axis.
                 if let Some(hinge) = hinges.get_mut(parent) {
                     if hinge.axis.is_none() {
                         hinge.axis = transforms
@@ -169,39 +172,63 @@ impl<'a> System<'a> for KinematicsSystem {
                     }
                 }
 
-                if let Some(axis) = hinges
-                    .get(parent)
-                    .and_then(|hinge| { hinge.axis.clone() }) {
-                    let mut axis_debug_line = |axis, color| {
-                        let start = transforms
+                // Apply hinge constraint.
+                if let Some(hinge) = hinges.get(parent) {
+                    if let Some(axis) = hinge.axis.clone() {
+                        // Draw debug line for hinge axis.
+                        {
+                            let start = transforms
+                                .get(parent)
+                                .unwrap()
+                                .global_matrix()
+                                .transform_point(&Point3::origin()) + offset;
+                            let axis = transforms
+                                .get(parent)
+                                .unwrap()
+                                .global_matrix()
+                                .transform_vector(&axis);
+                            let end = start + axis;
+                            let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
+                            debug_lines.draw_line(start, end, color);
+                        }
+
+                        let parent_axis = transforms
                             .get(parent)
                             .unwrap()
-                            .global_matrix()
-                            .transform_point(&Point3::origin()) + offset;
-                        let axis = transforms
-                            .get(parent)
-                            .unwrap()
-                            .global_matrix()
-                            .transform_vector(&axis);
-                        let end = start + axis;
-                        debug_lines.draw_line(start, end, color);
-                    };
-                    axis_debug_line(axis.clone(), Srgba::new(1.0, 0.0, 0.0, 1.0));
+                            .rotation()
+                            .inverse_transform_vector(&axis);
 
-                    let parent_axis = transforms
-                        .get(parent)
-                        .unwrap()
-                        .rotation()
-                        .inverse_transform_vector(&axis);
+                        if let Some((axis, angle)) = UnitQuaternion::rotation_between(&axis, &parent_axis)
+                            .and_then(|rotation| rotation.axis_angle()) {
+                            transforms
+                                .get_mut(parent)
+                                .unwrap()
+                                .append_rotation(axis, angle);
+                            target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                                .transform_point(&target);
+                        }
 
-                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(&axis, &parent_axis)
-                        .and_then(|rotation| rotation.axis_angle()) {
-                        transforms
-                            .get_mut(parent)
-                            .unwrap()
-                            .append_rotation(axis, angle);
-                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                            .transform_point(&target);
+                        // Apply hinge limit.
+                        if let Some((min, max)) = hinge.limit {
+                            let transform = transforms
+                                .get_mut(parent)
+                                .unwrap();
+                            let hinge_axis = axis;
+                            if let Some((axis, angle)) = transform
+                                .rotation()
+                                .axis_angle() {
+                                let (axis, angle) = {
+                                    if axis.dot(&hinge_axis) < 0.0 {
+                                        (axis.neg(), angle.neg())
+                                    } else { (axis, angle) }
+                                };
+                                let angle = angle.min(max).max(min) - angle;
+
+                                transform.append_rotation(axis, angle);
+                                target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                                    .transform_point(&target);
+                            }
+                        }
                     }
                 }
             }

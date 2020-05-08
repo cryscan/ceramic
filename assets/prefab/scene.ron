@@ -55,13 +55,13 @@ Prefab(
         ),
         (
             data: (
-                hinge: (),
+                hinge: (limit: (0.5235, 2.6180)),
                 binder: (name: "DEF-foot.L"),
             ),
         ),
         (
             data: (
-                hinge: (),
+                hinge: (limit: (0.3490, 2.7925)),
                 binder: (name: "DEF-shin.L"),
             ),
         ),
