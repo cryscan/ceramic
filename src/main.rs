@@ -1,3 +1,5 @@
+#![feature(option_zip)]
+
 use amethyst::{
     animation::{AnimationBundle, VertexSkinningBundle},
     assets::PrefabLoaderSystemDesc,

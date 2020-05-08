@@ -50,9 +50,19 @@ Prefab(
                     length: 4,
                     target: 3,
                 ),
-                binder: (
-                    name: "DEF-r_toe.L",
-                ),
+                binder: (name: "DEF-r_toe.L",),
+            ),
+        ),
+        (
+            data: (
+                hinge: (),
+                binder: (name: "DEF-foot.L"),
+            ),
+        ),
+        (
+            data: (
+                hinge: (),
+                binder: (name: "DEF-shin.L"),
             ),
         ),
         (

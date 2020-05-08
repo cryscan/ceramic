@@ -12,7 +12,7 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
-    kinematics::{Binder, ChainPrefab},
+    kinematics::{Binder, ChainPrefab, Hinge},
     player::Player,
 };
 
@@ -30,6 +30,7 @@ pub struct ScenePrefab {
     player: Option<Player>,
     binder: Option<Binder>,
     chain: Option<ChainPrefab>,
+    hinge: Option<Hinge>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,

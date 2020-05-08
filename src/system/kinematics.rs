@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use amethyst::{
     assets::PrefabData,
     core::{
-        math::{Point3, UnitQuaternion},
+        math::{Point3, UnitQuaternion, Vector3},
         Named, Parent, Transform,
     },
     derive::{PrefabData, SystemDesc},
@@ -52,6 +52,16 @@ impl<'a> PrefabData<'a> for ChainPrefab {
     }
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
+#[prefab(Component)]
+pub struct Hinge {
+    axis: Option<Vector3<f32>>,
+}
+
+impl Component for Hinge {
+    type Storage = DenseVecStorage<Self>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 pub struct Binder {
@@ -72,10 +82,21 @@ impl<'a> System<'a> for KinematicsSystem {
         WriteStorage<'a, Transform>,
         ReadStorage<'a, Binder>,
         ReadStorage<'a, Chain>,
+        WriteStorage<'a, Hinge>,
         Write<'a, DebugLines>,
     );
 
-    fn run(&mut self, (entities, parents, mut transforms, binders, chains, mut debug_lines): Self::SystemData) {
+    fn run(&mut self, data: Self::SystemData) {
+        let (
+            entities,
+            parents,
+            mut transforms,
+            binders,
+            chains,
+            mut hinges,
+            mut debug_lines,
+        ) = data;
+
         for (entity, chain, _) in (&*entities, &chains, !&binders).join() {
             let entities = iterate(
                 entity,
@@ -98,35 +119,90 @@ impl<'a> System<'a> for KinematicsSystem {
                 .get(entity)
                 .unwrap()
                 .global_view_matrix()
-                .transform_point(global);
+                .transform_point(&global);
 
+            let offset = Vector3::new(2.0, 0.0, 0.0);
+
+            // Render debug lines.
             for (start, end) in entities.iter().tuple_windows() {
-                let start = global_position(*start);
-                let end = global_position(*end);
+                let start = global_position(*start) + offset;
+                let end = global_position(*end) + offset;
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
 
             let mut end = Point3::<f32>::origin();
-            let mut target = local_position(entity, &global_position(chain.target));
+            let mut target = local_position(entity, global_position(chain.target));
 
-            for (entity, parent) in entities.iter().tuple_windows() {
-                let transform = |point| transforms
-                    .get(*entity)
-                    .unwrap()
-                    .matrix()
-                    .transform_point(&point);
-                end = transform(end);
-                target = transform(target);
+            // Direction of entity is the rotation of its parent.
+            for (&entity, &parent) in entities.iter().tuple_windows() {
+                // Bring end and target to entity's coordinate.
+                {
+                    let transform_point = |point| transforms
+                        .get(entity)
+                        .unwrap()
+                        .matrix()
+                        .transform_point(&point);
+                    end = transform_point(end);
+                    target = transform_point(target);
+                }
 
+                // Align the end with the target.
                 if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
                     .and_then(|rotation| rotation.axis_angle()) {
                     transforms
-                        .get_mut(*parent)
+                        .get_mut(parent)
                         .unwrap()
                         .append_rotation(axis, angle);
                     target = UnitQuaternion::from_axis_angle(&axis, -angle)
                         .transform_point(&target);
+                }
+
+                if let Some(hinge) = hinges.get_mut(parent) {
+                    if hinge.axis.is_none() {
+                        hinge.axis = transforms
+                            .get(parent)
+                            .unwrap()
+                            .rotation()
+                            .axis()
+                            .map(|axis| axis.into_inner());
+                    }
+                }
+
+                if let Some(axis) = hinges
+                    .get(parent)
+                    .and_then(|hinge| { hinge.axis.clone() }) {
+                    let mut axis_debug_line = |axis, color| {
+                        let start = transforms
+                            .get(parent)
+                            .unwrap()
+                            .global_matrix()
+                            .transform_point(&Point3::origin()) + offset;
+                        let axis = transforms
+                            .get(parent)
+                            .unwrap()
+                            .global_matrix()
+                            .transform_vector(&axis);
+                        let end = start + axis;
+                        debug_lines.draw_line(start, end, color);
+                    };
+                    axis_debug_line(axis.clone(), Srgba::new(1.0, 0.0, 0.0, 1.0));
+
+                    let parent_axis = transforms
+                        .get(parent)
+                        .unwrap()
+                        .rotation()
+                        .inverse_transform_vector(&axis);
+
+                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(&axis, &parent_axis)
+                        .and_then(|rotation| rotation.axis_angle()) {
+                        transforms
+                            .get_mut(parent)
+                            .unwrap()
+                            .append_rotation(axis, angle);
+                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                            .transform_point(&target);
+                    }
                 }
             }
         }
@@ -142,14 +218,17 @@ impl<'a> System<'a> for BinderSystem {
         ReadStorage<'a, Binder>,
         ReadStorage<'a, Named>,
         WriteStorage<'a, Chain>,
+        WriteStorage<'a, Hinge>,
     );
 
-    fn run(&mut self, (entities, binders, names, mut chains): Self::SystemData) {
+    fn run(&mut self, (entities, binders, names, mut chains, mut hinges): Self::SystemData) {
         for (entity, binder) in (&*entities, &binders).join() {
             let chain = chains.get(entity).cloned();
+            let hinge = hinges.get(entity).cloned();
             for (entity, name) in (&*entities, &names).join() {
                 if binder.name == name.name {
                     if let Some(chain) = chain { chains.insert(entity, chain).unwrap(); }
+                    if let Some(hinge) = hinge { hinges.insert(entity, hinge).unwrap(); }
                 }
             }
             entities.delete(entity).unwrap();
