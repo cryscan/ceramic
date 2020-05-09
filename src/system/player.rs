@@ -36,9 +36,9 @@ impl<'a> System<'a> for PlayerSystem {
     fn run(&mut self, (players, mut transforms, input, time): Self::SystemData) {
         for (player, transform) in (&players, &mut transforms).join() {
             let movement = Vector3::new(
-                input.axis_value("left_right").unwrap_or(0.0),
-                input.axis_value("up_down").unwrap_or(0.0),
-                input.axis_value("fore_back").unwrap_or(0.0),
+                input.axis_value("move_x").unwrap_or(0.0),
+                input.axis_value("move_y").unwrap_or(0.0),
+                input.axis_value("move_z").unwrap_or(0.0),
             );
             transform.append_translation(time.delta_seconds() * player.speed * movement);
         }

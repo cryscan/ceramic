@@ -1,7 +1,7 @@
 #![enable(implicit_some)]
 Prefab(
     entities: [
-        (
+        (   // 0 model
             data: (
                 model: File("model/cat.glb", ()),
                 transform: (),
@@ -36,47 +36,6 @@ Prefab(
         ),
         (
             data: (
-                model: File("model/cube.glb", ()),
-                transform: (
-                    translation: (0.6, 0.2, -0.8),
-                ),
-                player: (speed: 4.0),
-                name: (name: "player"),
-            ),
-        ),
-        (
-            parent: 0,
-            data: (
-                model: File("model/cube.glb", ()),
-                transform: (
-                    translation: (1.5, 1.0, 2.0),
-                ),
-            ),
-        ),
-        (
-            data: (
-                chain: (
-                    length: 4,
-                    target: 3,
-                ),
-                binder: (name: "DEF-r_toe.L",),
-            ),
-        ),
-        (
-            data: (
-                hinge: (limit: (0.5235, 1.5708)),
-                binder: (name: "DEF-foot.L"),
-            ),
-        ),
-        (
-            data: (
-                hinge: (limit: (0.3490, 2.7925)),
-                binder: (name: "DEF-shin.L"),
-                pole: (target: 4),
-            ),
-        ),
-        (
-            data: (
                 transform: (
                     translation: (6.0, 6.0, -6.0),
                     rotation: (0.0, 1.0, 0.0, 0.0),
@@ -101,6 +60,47 @@ Prefab(
                         color: (1.0, 0.8, 0.6),
                     )),
                 ),
+            ),
+        ),
+        (   // 5 control handle
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.6, 0.2, -0.8),
+                ),
+                player: (speed: 4.0),
+                name: (name: "player"),
+            ),
+        ),
+        (   // 6 left thigh pole
+            parent: 0,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (1.5, 1.0, 2.0),
+                ),
+            ),
+        ),
+        (
+            data: (
+                chain: (
+                    length: 4,
+                    target: 5,
+                ),
+                binder: (name: "DEF-r_toe.L",),
+            ),
+        ),
+        (
+            data: (
+                hinge: (limit: (0.5236, 1.5708)),
+                binder: (name: "DEF-foot.L"),
+            ),
+        ),
+        (
+            data: (
+                hinge: (limit: (1.0472, 2.6180)),
+                binder: (name: "DEF-shin.L"),
+                pole: (target: 6),
             ),
         ),
     ]
