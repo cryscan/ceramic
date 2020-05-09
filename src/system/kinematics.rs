@@ -77,7 +77,7 @@ impl Component for Pole {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct PolePrefab {
-    pole: usize,
+    target: usize,
 }
 
 impl<'a> PrefabData<'a> for PolePrefab {
@@ -91,7 +91,7 @@ impl<'a> PrefabData<'a> for PolePrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let pole = Pole { target: entities[self.pole] };
+        let pole = Pole { target: entities[self.target] };
         data.insert(entity, pole).map(|_| ()).map_err(Into::into)
     }
 }
@@ -190,7 +190,7 @@ impl<'a> System<'a> for KinematicsSystem {
                 debug_lines.draw_line(start, end, color);
             }
 
-            let mut end = Point3::<f32>::origin();
+            let mut end: Point3<f32> = Point3::origin();
             let mut target = {
                 let target = global_position(&transforms, chain.target);
                 local_position(&transforms, entity, &target)
@@ -221,11 +221,7 @@ impl<'a> System<'a> for KinematicsSystem {
                 }
 
                 // Align the joint with pole.
-                if let Some(pole) = poles.get(parent) {
-                    let pole = {
-                        let pole = global_position(&transforms, pole.target);
-                        local_position(&transforms, parent, &pole)
-                    };
+                if let Some(pole) = poles.get(entity) {
                     let transform_point = |entity, point| -> Point3<f32> {
                         transforms
                             .get(entity)
@@ -234,29 +230,25 @@ impl<'a> System<'a> for KinematicsSystem {
                             .transform_point(&point)
                     };
 
-                    let knee = transform_point(parent, Point3::origin());
-                    let ankle = transform_point(entity, knee.clone());
+                    let pole = {
+                        let pole = global_position(&transforms, pole.target);
+                        local_position(&transforms, parent, &pole).coords
+                    };
+                    let direction = transform_point(entity, Point3::origin()).coords;
+                    let axis = end.coords.normalize();
 
-                    let direction = knee.coords.scale(2.0) - ankle.coords;
-                    let pole = pole - knee;
+                    let pole = pole - axis.scale(pole.dot(&axis));
+                    let direction = direction - axis.scale(direction.dot(&axis));
 
-                    UnitQuaternion::rotation_between(&direction, &pole)
-                        .map(|rotation| {
-                            // Constrain the rotation to a certain axis.
-                            let axis = transform_point(parent, end.clone()).coords;
-                            let rotated = rotation.inverse_transform_vector(&axis);
-                            UnitQuaternion::rotation_between(&axis, &rotated)
-                                .map_or(rotation, |axis_rotation| axis_rotation * rotation)
-                        })
-                        .and_then(|rotation| rotation.axis_angle())
-                        .map(|(axis, angle)| {
-                            let transform = transforms.get_mut(parent).unwrap();
-                            transform.prepend_rotation(axis, angle);
-
-                            let rotation = UnitQuaternion::from_axis_angle(&axis, -angle);
-                            let transform = transform.view_matrix() * rotation.to_homogeneous() * transform.matrix();
-                            target = transform.transform_point(&target);
-                        });
+                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(&direction, &pole)
+                        .and_then(|rotation| rotation.axis_angle()) {
+                        transforms
+                            .get_mut(parent)
+                            .unwrap()
+                            .append_rotation(axis, angle);
+                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                            .transform_point(&target);
+                    }
                 }
 
                 // Auto-derive hinge axis.

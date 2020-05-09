@@ -31,7 +31,7 @@ pub struct ScenePrefab {
     binder: Option<Binder>,
     chain: Option<ChainPrefab>,
     hinge: Option<Hinge>,
-    ball_joint: Option<PolePrefab>,
+    pole: Option<PolePrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
