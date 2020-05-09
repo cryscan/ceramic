@@ -604,7 +604,6 @@ name = "ceramic"
 version = "0.1.0"
 dependencies = [
  "amethyst",
- "derive-new",
  "itertools 0.9.0",
  "serde",
 ]

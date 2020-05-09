@@ -1,11 +1,12 @@
-use std::{borrow::Cow,
-          ops::Neg,
+use std::{
+    borrow::Cow,
+    ops::Neg,
 };
 
 use amethyst::{
     assets::PrefabData,
     core::{
-        math::{Point3, Unit, UnitQuaternion, Vector3},
+        math::{Point3, UnitQuaternion, Vector3},
         Named, Parent, Transform,
     },
     derive::{PrefabData, SystemDesc},
@@ -44,7 +45,7 @@ impl<'a> PrefabData<'a> for ChainPrefab {
         entity: Entity,
         data: &mut Self::SystemData,
         entities: &[Entity],
-        _: &[Entity],
+        _children: &[Entity],
     ) -> Result<Self::Result, Error> {
         let chain = Chain {
             length: self.length,
@@ -65,17 +66,34 @@ impl Component for Hinge {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
-#[prefab(Component)]
-pub struct BallJoint {
-    axis: Option<Vector3<f32>>,
-    pole: Vector3<f32>,
-    axis_limit: (f32, f32),
-    pole_limit: (f32, f32),
+#[derive(Debug, Copy, Clone)]
+pub struct Pole {
+    pub target: Entity,
 }
 
-impl Component for BallJoint {
+impl Component for Pole {
     type Storage = DenseVecStorage<Self>;
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct PolePrefab {
+    pole: usize,
+}
+
+impl<'a> PrefabData<'a> for PolePrefab {
+    type SystemData = WriteStorage<'a, Pole>;
+    type Result = ();
+
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let pole = Pole { target: entities[self.pole] };
+        data.insert(entity, pole).map(|_| ()).map_err(Into::into)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
@@ -86,6 +104,41 @@ pub struct Binder {
 
 impl Component for Binder {
     type Storage = DenseVecStorage<Self>;
+}
+
+#[inline]
+fn global_position(transforms: &WriteStorage<Transform>, entity: Entity) -> Point3<f32> {
+    transforms
+        .get(entity)
+        .unwrap()
+        .global_matrix()
+        .transform_point(&Point3::<f32>::origin())
+}
+
+#[inline]
+fn local_position(
+    transforms: &WriteStorage<Transform>,
+    entity: Entity,
+    point: &Point3<f32>,
+) -> Point3<f32> {
+    transforms
+        .get(entity)
+        .unwrap()
+        .global_view_matrix()
+        .transform_point(point)
+}
+
+#[inline]
+fn global_direction(
+    transforms: &WriteStorage<Transform>,
+    entity: Entity,
+    vector: &Vector3<f32>,
+) -> Vector3<f32> {
+    transforms
+        .get(entity)
+        .unwrap()
+        .global_matrix()
+        .transform_vector(vector)
 }
 
 #[derive(Default, SystemDesc)]
@@ -99,7 +152,7 @@ impl<'a> System<'a> for KinematicsSystem {
         ReadStorage<'a, Binder>,
         ReadStorage<'a, Chain>,
         WriteStorage<'a, Hinge>,
-        WriteStorage<'a, BallJoint>,
+        ReadStorage<'a, Pole>,
         Write<'a, DebugLines>,
     );
 
@@ -111,7 +164,7 @@ impl<'a> System<'a> for KinematicsSystem {
             binders,
             chains,
             mut hinges,
-            mut ball_joints,
+            poles,
             mut debug_lines,
         ) = data;
 
@@ -121,42 +174,27 @@ impl<'a> System<'a> for KinematicsSystem {
                 |entity| {
                     parents
                         .get(*entity)
-                        .expect("IK chain too long")
+                        .expect("Chain too long")
                         .entity
                 })
                 .take(chain.length)
                 .collect_vec();
 
-            let global_position = |entity| transforms
-                .get(entity)
-                .unwrap()
-                .global_matrix()
-                .transform_point(&Point3::<f32>::origin());
-
-            let local_position = |entity, global| transforms
-                .get(entity)
-                .unwrap()
-                .global_view_matrix()
-                .transform_point(&global);
-
-            let fix_axis_angle = |direction, axis: Unit<Vector3<f32>>, angle: f32| {
-                if axis.dot(&direction) < 0.0 {
-                    (axis.neg(), angle.neg())
-                } else { (axis, angle) }
-            };
-
             let offset = Vector3::new(2.0, 0.0, 0.0);
 
             // Render debug lines.
             for (start, end) in entities.iter().tuple_windows() {
-                let start = global_position(*start) + offset;
-                let end = global_position(*end) + offset;
+                let start = global_position(&transforms, *start) + offset;
+                let end = global_position(&transforms, *end) + offset;
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
 
             let mut end = Point3::<f32>::origin();
-            let mut target = local_position(entity, global_position(chain.target));
+            let mut target = {
+                let target = global_position(&transforms, chain.target);
+                local_position(&transforms, entity, &target)
+            };
 
             // Direction of entity is the rotation of its parent.
             for (&entity, &parent) in entities.iter().tuple_windows() {
@@ -182,6 +220,45 @@ impl<'a> System<'a> for KinematicsSystem {
                         .transform_point(&target);
                 }
 
+                // Align the joint with pole.
+                if let Some(pole) = poles.get(parent) {
+                    let pole = {
+                        let pole = global_position(&transforms, pole.target);
+                        local_position(&transforms, parent, &pole)
+                    };
+                    let transform_point = |entity, point| -> Point3<f32> {
+                        transforms
+                            .get(entity)
+                            .unwrap()
+                            .matrix()
+                            .transform_point(&point)
+                    };
+
+                    let knee = transform_point(parent, Point3::origin());
+                    let ankle = transform_point(entity, knee.clone());
+
+                    let direction = knee.coords.scale(2.0) - ankle.coords;
+                    let pole = pole - knee;
+
+                    UnitQuaternion::rotation_between(&direction, &pole)
+                        .map(|rotation| {
+                            // Constrain the rotation to a certain axis.
+                            let axis = transform_point(parent, end.clone()).coords;
+                            let rotated = rotation.inverse_transform_vector(&axis);
+                            UnitQuaternion::rotation_between(&axis, &rotated)
+                                .map_or(rotation, |axis_rotation| axis_rotation * rotation)
+                        })
+                        .and_then(|rotation| rotation.axis_angle())
+                        .map(|(axis, angle)| {
+                            let transform = transforms.get_mut(parent).unwrap();
+                            transform.prepend_rotation(axis, angle);
+
+                            let rotation = UnitQuaternion::from_axis_angle(&axis, -angle);
+                            let transform = transform.view_matrix() * rotation.to_homogeneous() * transform.matrix();
+                            target = transform.transform_point(&target);
+                        });
+                }
+
                 // Auto-derive hinge axis.
                 if let Some(hinge) = hinges.get_mut(parent) {
                     if hinge.axis.is_none() {
@@ -199,16 +276,8 @@ impl<'a> System<'a> for KinematicsSystem {
                     if let Some(axis) = hinge.axis.clone() {
                         // Draw debug line for hinge axis.
                         {
-                            let start = transforms
-                                .get(parent)
-                                .unwrap()
-                                .global_matrix()
-                                .transform_point(&Point3::origin()) + offset;
-                            let axis = transforms
-                                .get(parent)
-                                .unwrap()
-                                .global_matrix()
-                                .transform_vector(&axis);
+                            let start = global_position(&transforms, parent) + offset;
+                            let axis = global_direction(&transforms, parent, &axis);
                             let end = start + axis;
                             let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
                             debug_lines.draw_line(start, end, color);
@@ -239,7 +308,9 @@ impl<'a> System<'a> for KinematicsSystem {
                             if let Some((axis, angle)) = transform
                                 .rotation()
                                 .axis_angle() {
-                                let (axis, angle) = fix_axis_angle(hinge_axis, axis, angle);
+                                let (axis, angle) = {
+                                    if axis.dot(&hinge_axis) < 0.0 { (axis.neg(), angle.neg()) } else { (axis, angle) }
+                                };
                                 let angle = angle.min(max).max(min) - angle;
 
                                 transform.append_rotation(axis, angle);
@@ -247,58 +318,6 @@ impl<'a> System<'a> for KinematicsSystem {
                                     .transform_point(&target);
                             }
                         }
-                    }
-                }
-
-                // Auto-deduce ball joint axis.
-                if let Some(ball_joint) = ball_joints.get_mut(parent) {
-                    if ball_joint.axis.is_none() {
-                        ball_joint.axis.replace(transforms
-                            .get(entity)
-                            .unwrap()
-                            .translation()
-                            .clone_owned()
-                        );
-                    }
-                }
-
-                // Apply ball joint constrain.
-                if let Some((axis, pole, axis_limit, pole_limit)) = ball_joints.get(parent)
-                    .and_then(|ball_joint| ball_joint.axis
-                        .map(|axis| (
-                            axis,
-                            ball_joint.pole.clone_owned(),
-                            ball_joint.axis_limit,
-                            ball_joint.pole_limit)
-                        )
-                    ) {
-                    let parent_rotation = transforms.get(parent).unwrap().rotation();
-
-                    // Constrain the rotation to some angle around an axis.
-                    let enforce_constrain = |axis, (min, max)| {
-                        let parent_axis = parent_rotation.inverse_transform_vector(&axis);
-                        UnitQuaternion::rotation_between(&axis, &parent_axis)
-                            .and_then(|rotation| (rotation * parent_rotation).axis_angle())
-                            .map(|(real_axis, angle)| {
-                                let (axis, angle) = fix_axis_angle(axis, real_axis, angle);
-                                let angle = angle.min(max).max(min) - angle;
-                                UnitQuaternion::from_axis_angle(&axis, angle)
-                            })
-                    };
-                    let left = pole.cross(&axis);
-
-                    let axis_constrain = enforce_constrain(left, axis_limit);
-                    let pole_constrain = enforce_constrain(pole, pole_limit);
-
-                    let mut rotation = UnitQuaternion::identity();
-                    if let Some(constrain) = axis_constrain { rotation = constrain * rotation; }
-                    if let Some(constrain) = pole_constrain { rotation = constrain * rotation; }
-                    if let Some((axis, angle)) = rotation.axis_angle() {
-                        transforms
-                            .get_mut(parent)
-                            .unwrap()
-                            .append_rotation(axis, angle);
-                        target = rotation.inverse_transform_point(&target);
                     }
                 }
             }
@@ -316,7 +335,7 @@ impl<'a> System<'a> for BinderSystem {
         ReadStorage<'a, Named>,
         WriteStorage<'a, Chain>,
         WriteStorage<'a, Hinge>,
-        WriteStorage<'a, BallJoint>,
+        WriteStorage<'a, Pole>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -326,18 +345,18 @@ impl<'a> System<'a> for BinderSystem {
             names,
             mut chains,
             mut hinges,
-            mut ball_joints
+            mut poles
         ) = data;
 
         for (entity, binder) in (&*entities, &binders).join() {
             let chain = chains.get(entity).cloned();
             let hinge = hinges.get(entity).cloned();
-            let ball_joint = ball_joints.get(entity).cloned();
+            let pole = poles.get(entity).cloned();
             for (entity, name) in (&*entities, &names).join() {
                 if binder.name == name.name {
                     if let Some(chain) = chain { chains.insert(entity, chain).unwrap(); }
                     if let Some(hinge) = hinge { hinges.insert(entity, hinge).unwrap(); }
-                    if let Some(ball_joint) = ball_joint { ball_joints.insert(entity, ball_joint).unwrap(); }
+                    if let Some(pole) = pole { poles.insert(entity, pole).unwrap(); }
                 }
             }
             entities.delete(entity).unwrap();
