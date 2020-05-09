@@ -1,10 +1,11 @@
-use std::borrow::Cow;
-use std::ops::Neg;
+use std::{borrow::Cow,
+          ops::Neg,
+};
 
 use amethyst::{
     assets::PrefabData,
     core::{
-        math::{Point3, UnitQuaternion, Vector3},
+        math::{Point3, Unit, UnitQuaternion, Vector3},
         Named, Parent, Transform,
     },
     derive::{PrefabData, SystemDesc},
@@ -64,6 +65,19 @@ impl Component for Hinge {
     type Storage = DenseVecStorage<Self>;
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
+#[prefab(Component)]
+pub struct BallJoint {
+    axis: Option<Vector3<f32>>,
+    pole: Vector3<f32>,
+    axis_limit: (f32, f32),
+    pole_limit: (f32, f32),
+}
+
+impl Component for BallJoint {
+    type Storage = DenseVecStorage<Self>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 pub struct Binder {
@@ -85,6 +99,7 @@ impl<'a> System<'a> for KinematicsSystem {
         ReadStorage<'a, Binder>,
         ReadStorage<'a, Chain>,
         WriteStorage<'a, Hinge>,
+        WriteStorage<'a, BallJoint>,
         Write<'a, DebugLines>,
     );
 
@@ -96,6 +111,7 @@ impl<'a> System<'a> for KinematicsSystem {
             binders,
             chains,
             mut hinges,
+            mut ball_joints,
             mut debug_lines,
         ) = data;
 
@@ -122,6 +138,12 @@ impl<'a> System<'a> for KinematicsSystem {
                 .unwrap()
                 .global_view_matrix()
                 .transform_point(&global);
+
+            let fix_axis_angle = |direction, axis: Unit<Vector3<f32>>, angle: f32| {
+                if axis.dot(&direction) < 0.0 {
+                    (axis.neg(), angle.neg())
+                } else { (axis, angle) }
+            };
 
             let offset = Vector3::new(2.0, 0.0, 0.0);
 
@@ -217,11 +239,7 @@ impl<'a> System<'a> for KinematicsSystem {
                             if let Some((axis, angle)) = transform
                                 .rotation()
                                 .axis_angle() {
-                                let (axis, angle) = {
-                                    if axis.dot(&hinge_axis) < 0.0 {
-                                        (axis.neg(), angle.neg())
-                                    } else { (axis, angle) }
-                                };
+                                let (axis, angle) = fix_axis_angle(hinge_axis, axis, angle);
                                 let angle = angle.min(max).max(min) - angle;
 
                                 transform.append_rotation(axis, angle);
@@ -229,6 +247,58 @@ impl<'a> System<'a> for KinematicsSystem {
                                     .transform_point(&target);
                             }
                         }
+                    }
+                }
+
+                // Auto-deduce ball joint axis.
+                if let Some(ball_joint) = ball_joints.get_mut(parent) {
+                    if ball_joint.axis.is_none() {
+                        ball_joint.axis.replace(transforms
+                            .get(entity)
+                            .unwrap()
+                            .translation()
+                            .clone_owned()
+                        );
+                    }
+                }
+
+                // Apply ball joint constrain.
+                if let Some((axis, pole, axis_limit, pole_limit)) = ball_joints.get(parent)
+                    .and_then(|ball_joint| ball_joint.axis
+                        .map(|axis| (
+                            axis,
+                            ball_joint.pole.clone_owned(),
+                            ball_joint.axis_limit,
+                            ball_joint.pole_limit)
+                        )
+                    ) {
+                    let parent_rotation = transforms.get(parent).unwrap().rotation();
+
+                    // Constrain the rotation to some angle around an axis.
+                    let enforce_constrain = |axis, (min, max)| {
+                        let parent_axis = parent_rotation.inverse_transform_vector(&axis);
+                        UnitQuaternion::rotation_between(&axis, &parent_axis)
+                            .and_then(|rotation| (rotation * parent_rotation).axis_angle())
+                            .map(|(real_axis, angle)| {
+                                let (axis, angle) = fix_axis_angle(axis, real_axis, angle);
+                                let angle = angle.min(max).max(min) - angle;
+                                UnitQuaternion::from_axis_angle(&axis, angle)
+                            })
+                    };
+                    let left = pole.cross(&axis);
+
+                    let axis_constrain = enforce_constrain(left, axis_limit);
+                    let pole_constrain = enforce_constrain(pole, pole_limit);
+
+                    let mut rotation = UnitQuaternion::identity();
+                    if let Some(constrain) = axis_constrain { rotation = constrain * rotation; }
+                    if let Some(constrain) = pole_constrain { rotation = constrain * rotation; }
+                    if let Some((axis, angle)) = rotation.axis_angle() {
+                        transforms
+                            .get_mut(parent)
+                            .unwrap()
+                            .append_rotation(axis, angle);
+                        target = rotation.inverse_transform_point(&target);
                     }
                 }
             }
@@ -246,16 +316,28 @@ impl<'a> System<'a> for BinderSystem {
         ReadStorage<'a, Named>,
         WriteStorage<'a, Chain>,
         WriteStorage<'a, Hinge>,
+        WriteStorage<'a, BallJoint>,
     );
 
-    fn run(&mut self, (entities, binders, names, mut chains, mut hinges): Self::SystemData) {
+    fn run(&mut self, data: Self::SystemData) {
+        let (
+            entities,
+            binders,
+            names,
+            mut chains,
+            mut hinges,
+            mut ball_joints
+        ) = data;
+
         for (entity, binder) in (&*entities, &binders).join() {
             let chain = chains.get(entity).cloned();
             let hinge = hinges.get(entity).cloned();
+            let ball_joint = ball_joints.get(entity).cloned();
             for (entity, name) in (&*entities, &names).join() {
                 if binder.name == name.name {
                     if let Some(chain) = chain { chains.insert(entity, chain).unwrap(); }
                     if let Some(hinge) = hinge { hinges.insert(entity, hinge).unwrap(); }
+                    if let Some(ball_joint) = ball_joint { ball_joints.insert(entity, ball_joint).unwrap(); }
                 }
             }
             entities.delete(entity).unwrap();

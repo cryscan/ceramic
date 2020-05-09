@@ -55,7 +55,7 @@ Prefab(
         ),
         (
             data: (
-                hinge: (limit: (0.5235, 2.6180)),
+                hinge: (limit: (0.5235, 1.5708)),
                 binder: (name: "DEF-foot.L"),
             ),
         ),
