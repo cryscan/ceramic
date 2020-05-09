@@ -180,12 +180,10 @@ impl<'a> System<'a> for KinematicsSystem {
                 .take(chain.length)
                 .collect_vec();
 
-            let offset = Vector3::new(2.0, 0.0, 0.0);
-
             // Render debug lines.
             for (start, end) in entities.iter().tuple_windows() {
-                let start = global_position(&transforms, *start) + offset;
-                let end = global_position(&transforms, *end) + offset;
+                let start = global_position(&transforms, *start);
+                let end = global_position(&transforms, *end);
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
@@ -237,6 +235,14 @@ impl<'a> System<'a> for KinematicsSystem {
                     let direction = transform_point(entity, Point3::origin()).coords;
                     let axis = end.coords.normalize();
 
+                    // Draw debug line for pole.
+                    {
+                        let start = global_position(&transforms, entity);
+                        let end = &start + global_direction(&transforms, parent, &pole);
+                        let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
+                        debug_lines.draw_line(start, end, color);
+                    }
+
                     let pole = pole - axis.scale(pole.dot(&axis));
                     let direction = direction - axis.scale(direction.dot(&axis));
 
@@ -268,9 +274,8 @@ impl<'a> System<'a> for KinematicsSystem {
                     if let Some(axis) = hinge.axis.clone() {
                         // Draw debug line for hinge axis.
                         {
-                            let start = global_position(&transforms, parent) + offset;
-                            let axis = global_direction(&transforms, parent, &axis);
-                            let end = start + axis;
+                            let start = global_position(&transforms, parent);
+                            let end = &start + global_direction(&transforms, parent, &axis);
                             let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
                             debug_lines.draw_line(start, end, color);
                         }
