@@ -42,18 +42,43 @@ impl<'a> PrefabData<'a> for ChainPrefab {
     type SystemData = WriteStorage<'a, Chain>;
     type Result = ();
 
-    fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
+    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let chain = Chain {
+        let component = Chain {
             length: self.length,
             target: entities[self.target],
         };
-        data.insert(entity, chain).map(|_| ()).map_err(Into::into)
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct FaceTarget {
+    axis: Option<Vector3<f32>>,
+    target: Entity,
+}
+
+impl Component for FaceTarget {
+    type Storage = DenseVecStorage<Self>;
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct FaceTargetPrefab {
+    axis: Option<Vector3<f32>>,
+    target: usize,
+}
+
+impl<'a> PrefabData<'a> for FaceTargetPrefab {
+    type SystemData = WriteStorage<'a, FaceTarget>;
+    type Result = ();
+
+    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let component = FaceTarget {
+            axis: self.axis.clone(),
+            target: entities[self.target],
+        };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
 }
 
@@ -87,14 +112,10 @@ impl<'a> PrefabData<'a> for PolePrefab {
     type Result = ();
 
     fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
+        &self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let pole = Pole { target: entities[self.target] };
-        data.insert(entity, pole).map(|_| ()).map_err(Into::into)
+        let component = Pole { target: entities[self.target] };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
 }
 
@@ -102,6 +123,7 @@ impl<'a> PrefabData<'a> for PolePrefab {
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
     Chain(ChainPrefab),
+    FaceTarget(FaceTargetPrefab),
     Hinge(Hinge),
     Pole(PolePrefab),
 }
@@ -377,6 +399,7 @@ impl BinderBundle {
 impl<'a, 'b> SystemBundle<'a, 'b> for BinderBundle {
     fn build(self, _world: &mut World, builder: &mut DispatcherBuilder<'a, 'b>) -> Result<(), Error> {
         builder.add(BinderSystem::<Chain>::default(), "chain_binder", &[]);
+        builder.add(BinderSystem::<FaceTarget>::default(), "face_target_binder", &[]);
         builder.add(BinderSystem::<Hinge>::default(), "hinge_binder", &[]);
         builder.add(BinderSystem::<Pole>::default(), "pole_binder", &[]);
         Ok(())
