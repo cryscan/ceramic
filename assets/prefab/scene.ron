@@ -96,50 +96,105 @@ Prefab(
                 ),
             ),
         ),
+        (   // 9 left front control handle
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.6, 0.2, 0.7),
+                ),
+                player: (speed: 4.0),
+            ),
+        ),
+        (   // 10 left forearm pole
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (1.2, 1.0, -2.0),
+                ),
+            ),
+        ),
         // left rear leg
         (
             data: (
-                binder: (name: "DEF-r_toe.L",),
-                chain: (
+                binder: (name: "DEF-r_toe.L"),
+                constrain: Chain((
                     length: 4,
                     target: 5,
-                ),
+                )),
             ),
         ),
         (
             data: (
                 binder: (name: "DEF-foot.L"),
-                hinge: (limit: (0.5236, 1.5708)),
+                constrain: Hinge((limit: (0.5236, 1.5708))),
             ),
         ),
         (
             data: (
                 binder: (name: "DEF-shin.L"),
-                hinge: (limit: (1.0472, 2.6180)),
-                pole: (target: 6),
+                constrain: Hinge((limit: (1.0472, 2.6180))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-thigh.L"),
+                constrain: Pole((target: 6)),
             ),
         ),
         // right rear leg
         (
             data: (
-                binder: (name: "DEF-r_toe.R",),
-                chain: (
+                binder: (name: "DEF-r_toe.R"),
+                constrain: Chain((
                     length: 4,
                     target: 7,
-                ),
+                )),
             ),
         ),
         (
             data: (
                 binder: (name: "DEF-foot.R"),
-                hinge: (limit: (0.5236, 1.5708)),
+                constrain: Hinge((limit: (0.5236, 1.5708))),
             ),
         ),
         (
             data: (
                 binder: (name: "DEF-shin.R"),
-                hinge: (limit: (1.0472, 2.6180)),
-                pole: (target: 8),
+                constrain: Hinge((limit: (1.0472, 2.6180))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-thigh.R"),
+                constrain: Pole((target: 8)),
+            ),
+        ),
+        // left front leg
+        (
+            data: (
+                binder: (name: "DEF-f_toe.L"),
+                constrain: Chain((
+                    length: 4,
+                    target: 9,
+                )),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-hand.L"),
+                constrain: Hinge((limit: (0, 1.5708))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-forearm.L"),
+                constrain: Hinge((limit: (0.5236, 2.0944))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-upper_arm.L"),
+                constrain: Pole((target: 10)),
             ),
         ),
     ]

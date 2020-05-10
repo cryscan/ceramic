@@ -12,7 +12,7 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
-    kinematics::{Binder, ChainPrefab, Hinge, PolePrefab},
+    kinematics::{Binder, ConstrainPrefab},
     player::Player,
 };
 
@@ -22,16 +22,14 @@ pub struct Scene {
 }
 
 #[derive(Serialize, Deserialize, Default, PrefabData)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ScenePrefab {
     transform: Option<Transform>,
     name: Option<Named>,
     model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
     player: Option<Player>,
     binder: Option<Binder>,
-    chain: Option<ChainPrefab>,
-    hinge: Option<Hinge>,
-    pole: Option<PolePrefab>,
+    constrain: Option<ConstrainPrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,

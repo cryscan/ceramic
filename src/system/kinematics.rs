@@ -1,12 +1,14 @@
 use std::{
     borrow::Cow,
+    marker::PhantomData,
     ops::Neg,
 };
 
 use amethyst::{
-    assets::PrefabData,
+    assets::{PrefabData, ProgressCounter},
     core::{
-        math::{Point3, UnitQuaternion, Vector3},
+        bundle::SystemBundle,
+        math::{Matrix4, Point3, UnitQuaternion, Vector3},
         Named, Parent, Transform,
     },
     derive::{PrefabData, SystemDesc},
@@ -30,7 +32,7 @@ impl Component for Chain {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct ChainPrefab {
     length: usize,
     target: usize,
@@ -96,6 +98,14 @@ impl<'a> PrefabData<'a> for PolePrefab {
     }
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
+#[serde(deny_unknown_fields)]
+pub enum ConstrainPrefab {
+    Chain(ChainPrefab),
+    Hinge(Hinge),
+    Pole(PolePrefab),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 pub struct Binder {
@@ -107,38 +117,19 @@ impl Component for Binder {
 }
 
 #[inline]
-fn global_position(transforms: &WriteStorage<Transform>, entity: Entity) -> Point3<f32> {
+fn global_transform<'a>(transforms: &'a WriteStorage<Transform>, entity: Entity) -> &'a Matrix4<f32> {
     transforms
         .get(entity)
         .unwrap()
         .global_matrix()
-        .transform_point(&Point3::<f32>::origin())
 }
 
 #[inline]
-fn local_position(
-    transforms: &WriteStorage<Transform>,
-    entity: Entity,
-    point: &Point3<f32>,
-) -> Point3<f32> {
+fn local_transform(transforms: &WriteStorage<Transform>, entity: Entity) -> Matrix4<f32> {
     transforms
         .get(entity)
         .unwrap()
         .global_view_matrix()
-        .transform_point(point)
-}
-
-#[inline]
-fn global_direction(
-    transforms: &WriteStorage<Transform>,
-    entity: Entity,
-    vector: &Vector3<f32>,
-) -> Vector3<f32> {
-    transforms
-        .get(entity)
-        .unwrap()
-        .global_matrix()
-        .transform_vector(vector)
 }
 
 #[derive(Default, SystemDesc)]
@@ -180,18 +171,24 @@ impl<'a> System<'a> for KinematicsSystem {
                 .take(chain.length)
                 .collect_vec();
 
+            let origin = &Point3::<f32>::origin();
+
             // Render debug lines.
-            for (start, end) in entities.iter().tuple_windows() {
-                let start = global_position(&transforms, *start);
-                let end = global_position(&transforms, *end);
+            for (&start, &end) in entities.iter().tuple_windows() {
+                let start = global_transform(&transforms, start)
+                    .transform_point(origin);
+                let end = global_transform(&transforms, end)
+                    .transform_point(origin);
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
 
             let mut end: Point3<f32> = Point3::origin();
             let mut target = {
-                let target = global_position(&transforms, chain.target);
-                local_position(&transforms, entity, &target)
+                let target = global_transform(&transforms, chain.target)
+                    .transform_point(origin);
+                local_transform(&transforms, entity)
+                    .transform_point(&target)
             };
 
             // Direction of entity is the rotation of its parent.
@@ -219,7 +216,7 @@ impl<'a> System<'a> for KinematicsSystem {
                 }
 
                 // Align the joint with pole.
-                if let Some(pole) = poles.get(entity) {
+                if let Some(pole) = poles.get(parent) {
                     let transform_point = |entity, point| -> Point3<f32> {
                         transforms
                             .get(entity)
@@ -229,16 +226,21 @@ impl<'a> System<'a> for KinematicsSystem {
                     };
 
                     let pole = {
-                        let pole = global_position(&transforms, pole.target);
-                        local_position(&transforms, parent, &pole).coords
+                        let pole = global_transform(&transforms, pole.target)
+                            .transform_point(origin);
+                        local_transform(&transforms, parent)
+                            .transform_point(&pole)
+                            .coords
                     };
                     let direction = transform_point(entity, Point3::origin()).coords;
                     let axis = end.coords.normalize();
 
                     // Draw debug line for pole.
                     {
-                        let start = global_position(&transforms, entity);
-                        let end = &start + global_direction(&transforms, parent, &pole);
+                        let start = global_transform(&transforms, entity)
+                            .transform_point(origin);
+                        let end = &start + global_transform(&transforms, parent)
+                            .transform_vector(&pole);
                         let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
                         debug_lines.draw_line(start, end, color);
                     }
@@ -274,8 +276,9 @@ impl<'a> System<'a> for KinematicsSystem {
                     if let Some(axis) = hinge.axis.clone() {
                         // Draw debug line for hinge axis.
                         {
-                            let start = global_position(&transforms, parent);
-                            let end = &start + global_direction(&transforms, parent, &axis);
+                            let transform = global_transform(&transforms, parent);
+                            let start = transform.transform_point(origin);
+                            let end = &start + transform.transform_vector(&axis);
                             let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
                             debug_lines.draw_line(start, end, color);
                         }
@@ -322,17 +325,23 @@ impl<'a> System<'a> for KinematicsSystem {
     }
 }
 
-#[derive(Default, SystemDesc)]
-pub struct BinderSystem;
+#[derive(SystemDesc)]
+pub struct BinderSystem<T: Component + Clone> {
+    _marker: PhantomData<T>,
+}
 
-impl<'a> System<'a> for BinderSystem {
+impl<T: Component + Clone> Default for BinderSystem<T> {
+    fn default() -> Self {
+        BinderSystem { _marker: PhantomData }
+    }
+}
+
+impl<'a, T: Component + Clone> System<'a> for BinderSystem<T> {
     type SystemData = (
         Entities<'a>,
         ReadStorage<'a, Binder>,
         ReadStorage<'a, Named>,
-        WriteStorage<'a, Chain>,
-        WriteStorage<'a, Hinge>,
-        WriteStorage<'a, Pole>,
+        WriteStorage<'a, T>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -340,23 +349,36 @@ impl<'a> System<'a> for BinderSystem {
             entities,
             binders,
             names,
-            mut chains,
-            mut hinges,
-            mut poles
+            mut storage,
         ) = data;
 
         for (entity, binder) in (&*entities, &binders).join() {
-            let chain = chains.get(entity).cloned();
-            let hinge = hinges.get(entity).cloned();
-            let pole = poles.get(entity).cloned();
+            let component = storage.get(entity).cloned();
             for (entity, name) in (&*entities, &names).join() {
                 if binder.name == name.name {
-                    if let Some(chain) = chain { chains.insert(entity, chain).unwrap(); }
-                    if let Some(hinge) = hinge { hinges.insert(entity, hinge).unwrap(); }
-                    if let Some(pole) = pole { poles.insert(entity, pole).unwrap(); }
+                    if let Some(component) = component {
+                        storage.insert(entity, component).unwrap();
+                    }
+                    break;
                 }
             }
             entities.delete(entity).unwrap();
         }
+    }
+}
+
+#[derive(Default)]
+pub struct BinderBundle;
+
+impl BinderBundle {
+    pub fn new() -> Self { BinderBundle }
+}
+
+impl<'a, 'b> SystemBundle<'a, 'b> for BinderBundle {
+    fn build(self, _world: &mut World, builder: &mut DispatcherBuilder<'a, 'b>) -> Result<(), Error> {
+        builder.add(BinderSystem::<Chain>::default(), "chain_binder", &[]);
+        builder.add(BinderSystem::<Hinge>::default(), "hinge_binder", &[]);
+        builder.add(BinderSystem::<Pole>::default(), "pole_binder", &[]);
+        Ok(())
     }
 }
