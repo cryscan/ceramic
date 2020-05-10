@@ -1,15 +1,11 @@
-use std::{
-    borrow::Cow,
-    marker::PhantomData,
-    ops::Neg,
-};
+use std::ops::Neg;
 
 use amethyst::{
     assets::{PrefabData, ProgressCounter},
     core::{
-        bundle::SystemBundle,
         math::{Matrix4, Point3, UnitQuaternion, Vector3},
-        Named, Parent, Transform,
+        Parent,
+        Transform,
     },
     derive::{PrefabData, SystemDesc},
     ecs::prelude::*,
@@ -21,6 +17,8 @@ use amethyst::{
 };
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
+
+use crate::system::binder::Binder;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
@@ -126,16 +124,6 @@ pub enum ConstrainPrefab {
     Direction(DirectionPrefab),
     Hinge(Hinge),
     Pole(PolePrefab),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
-#[prefab(Component)]
-pub struct Binder {
-    pub name: Cow<'static, str>,
-}
-
-impl Component for Binder {
-    type Storage = DenseVecStorage<Self>;
 }
 
 trait Helper {
@@ -373,64 +361,5 @@ impl<'a> System<'a> for KinematicsSystem {
                 }
             }
         }
-    }
-}
-
-#[derive(SystemDesc)]
-pub struct BinderSystem<T: Component + Clone> {
-    _marker: PhantomData<T>,
-}
-
-impl<T: Component + Clone> Default for BinderSystem<T> {
-    fn default() -> Self {
-        BinderSystem { _marker: PhantomData }
-    }
-}
-
-impl<'a, T: Component + Clone> System<'a> for BinderSystem<T> {
-    type SystemData = (
-        Entities<'a>,
-        ReadStorage<'a, Binder>,
-        ReadStorage<'a, Named>,
-        WriteStorage<'a, T>,
-    );
-
-    fn run(&mut self, data: Self::SystemData) {
-        let (
-            entities,
-            binders,
-            names,
-            mut storage,
-        ) = data;
-
-        for (entity, binder) in (&*entities, &binders).join() {
-            let component = storage.get(entity).cloned();
-            for (entity, name) in (&*entities, &names).join() {
-                if binder.name == name.name {
-                    if let Some(component) = component {
-                        storage.insert(entity, component).unwrap();
-                    }
-                    break;
-                }
-            }
-            entities.delete(entity).unwrap();
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct BinderBundle;
-
-impl BinderBundle {
-    pub fn new() -> Self { BinderBundle }
-}
-
-impl<'a, 'b> SystemBundle<'a, 'b> for BinderBundle {
-    fn build(self, _world: &mut World, builder: &mut DispatcherBuilder<'a, 'b>) -> Result<(), Error> {
-        builder.add(BinderSystem::<Chain>::default(), "chain_binder", &[]);
-        builder.add(BinderSystem::<Direction>::default(), "direction_binder", &[]);
-        builder.add(BinderSystem::<Hinge>::default(), "hinge_binder", &[]);
-        builder.add(BinderSystem::<Pole>::default(), "pole_binder", &[]);
-        Ok(())
     }
 }

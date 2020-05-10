@@ -223,7 +223,7 @@ Prefab(
         (
             data: (
                 binder: (name: "DEF-forearm.L"),
-                constrain: Hinge((limit: (0.5236, 2.0944))),
+                constrain: Hinge((limit: (1.0472, 2.0944))),
             ),
         ),
         (
@@ -257,7 +257,7 @@ Prefab(
         (
             data: (
                 binder: (name: "DEF-forearm.R"),
-                constrain: Hinge((limit: (0.5236, 2.0944))),
+                constrain: Hinge((limit: (1.0472, 2.0944))),
             ),
         ),
         (

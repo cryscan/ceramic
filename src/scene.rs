@@ -12,7 +12,8 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
-    kinematics::{Binder, ConstrainPrefab},
+    binder::Binder,
+    kinematics::ConstrainPrefab,
     player::Player,
 };
 

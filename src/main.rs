@@ -19,7 +19,10 @@ use amethyst::{
 use crate::{
     scene::ScenePrefab,
     state::load::LoadState,
-    system::kinematics::{BinderBundle, KinematicsSystem},
+    system::{
+        binder::BinderBundle,
+        kinematics::KinematicsSystem,
+    },
 };
 use crate::system::player::PlayerSystem;
 
