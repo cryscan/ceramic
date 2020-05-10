@@ -64,7 +64,7 @@ Prefab(
         ),
         (   // 5 left rear control handle
             data: (
-                model: File("model/cube.glb", ()),
+                // model: File("model/cube.glb", ()),
                 transform: (
                     translation: (0.6, 0.2, -0.8),
                 ),
@@ -81,7 +81,7 @@ Prefab(
         ),
         (   // 7 right rear control handle
             data: (
-                model: File("model/cube.glb", ()),
+                // model: File("model/cube.glb", ()),
                 transform: (
                     translation: (-0.6, 0.2, -0.8),
                 ),
@@ -98,7 +98,7 @@ Prefab(
         ),
         (   // 9 left front control handle
             data: (
-                model: File("model/cube.glb", ()),
+                // model: File("model/cube.glb", ()),
                 transform: (
                     translation: (0.6, 0.2, 0.7),
                 ),
@@ -113,14 +113,37 @@ Prefab(
                 ),
             ),
         ),
+        (   // 11 right front control handle
+            data: (
+                // model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (-0.6, 0.2, 0.7),
+                ),
+                player: (speed: 4.0),
+            ),
+        ),
+        (   // 12 right forearm pole
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (-1.2, 1.0, -2.0),
+                ),
+            ),
+        ),
         // left rear leg
         (
             data: (
-                binder: (name: "DEF-r_toe.L"),
+                binder: (name: "IK-r_leg.L"),
                 constrain: Chain((
-                    length: 4,
+                    length: 5,
                     target: 5,
                 )),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-r_toe.L"),
+                constrain: Direction((target: 5)),
             ),
         ),
         (
@@ -144,11 +167,17 @@ Prefab(
         // right rear leg
         (
             data: (
-                binder: (name: "DEF-r_toe.R"),
+                binder: (name: "IK-r_leg.R"),
                 constrain: Chain((
-                    length: 4,
+                    length: 5,
                     target: 7,
                 )),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-r_toe.R"),
+                constrain: Direction((target: 7)),
             ),
         ),
         (
@@ -172,11 +201,17 @@ Prefab(
         // left front leg
         (
             data: (
-                binder: (name: "DEF-f_toe.L"),
+                binder: (name: "IK-f_leg.L"),
                 constrain: Chain((
-                    length: 4,
+                    length: 5,
                     target: 9,
                 )),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-f_toe.L"),
+                constrain: Direction((target: 9)),
             ),
         ),
         (
@@ -195,6 +230,40 @@ Prefab(
             data: (
                 binder: (name: "DEF-upper_arm.L"),
                 constrain: Pole((target: 10)),
+            ),
+        ),
+        // right front leg
+        (
+            data: (
+                binder: (name: "IK-f_leg.R"),
+                constrain: Chain((
+                    length: 5,
+                    target: 11,
+                )),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-f_toe.R"),
+                constrain: Direction((target: 11)),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-hand.R"),
+                constrain: Hinge((limit: (0, 1.5708))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-forearm.R"),
+                constrain: Hinge((limit: (0.5236, 2.0944))),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-upper_arm.R"),
+                constrain: Pole((target: 12)),
             ),
         ),
     ]
