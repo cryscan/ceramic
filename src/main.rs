@@ -20,15 +20,17 @@ use crate::{
     scene::ScenePrefab,
     state::load::LoadState,
     system::{
+        animal::TrackSystem,
         binder::BinderBundle,
         kinematics::KinematicsSystem,
+        player::PlayerSystem,
     },
 };
-use crate::system::player::PlayerSystem;
 
 mod scene;
 mod state;
 mod system;
+mod utils;
 
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(Default::default());
@@ -70,6 +72,7 @@ fn main() -> amethyst::Result<()> {
         .with(PlayerSystem::default(), "player", &[])
         .with_bundle(BinderBundle::new())?
         .with(KinematicsSystem::default(), "kinematics", &[])
+        .with(TrackSystem::default(), "animal_track", &[])
         .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
@@ -78,6 +81,7 @@ fn main() -> amethyst::Result<()> {
             "free_rotation",
             "player",
             "kinematics",
+            "animal_track",
         ]))?
         .with_bundle(VertexSkinningBundle::new().with_dep(&[
             "transform_system",

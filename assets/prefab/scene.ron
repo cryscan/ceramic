@@ -68,7 +68,7 @@ Prefab(
                 transform: (
                     translation: (0.6, 0.0, -0.8),
                 ),
-                player: (speed: 4.0),
+                // player: (speed: 4.0),
             ),
         ),
         (   // 6 left thigh pole
@@ -85,7 +85,7 @@ Prefab(
                 transform: (
                     translation: (-0.6, 0.0, -0.8),
                 ),
-                player: (speed: 4.0),
+                // player: (speed: 4.0),
             ),
         ),
         (   // 8 right thigh pole
@@ -102,7 +102,7 @@ Prefab(
                 transform: (
                     translation: (0.6, 0.0, 0.7),
                 ),
-                player: (speed: 4.0),
+                // player: (speed: 4.0),
             ),
         ),
         (   // 10 left forearm pole
@@ -119,7 +119,7 @@ Prefab(
                 transform: (
                     translation: (-0.6, 0.0, 0.7),
                 ),
-                player: (speed: 4.0),
+                // player: (speed: 4.0),
             ),
         ),
         (   // 12 right forearm pole
@@ -128,6 +128,16 @@ Prefab(
                 transform: (
                     translation: (-1.5, 1.0, -2.0),
                 ),
+            ),
+        ),
+        (   // 13 head track target
+            parent: 2,
+            data: (
+                model: File("model/cube.glb", ()),
+                transform: (
+                    translation: (0.0, 0.0, 2.0),
+                ),
+                player: (speed: 4.0),
             ),
         ),
         // left rear leg
@@ -264,6 +274,37 @@ Prefab(
             data: (
                 binder: (name: "DEF-upper_arm.R"),
                 constrain: Pole((target: 12)),
+            ),
+        ),
+        // head and eyes
+        (
+            data: (
+                binder: (name: "DEF-spine.005"),
+                tracker: (
+                    target: 13,
+                    limit: (1.0472, 1.0472, 0.0),
+                    speed: 4,
+                ),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-eye.L"),
+                tracker: (
+                    target: 13,
+                    limit: (0.5235, 0.5235, 0.5235),
+                    speed: 4,
+                ),
+            ),
+        ),
+        (
+            data: (
+                binder: (name: "DEF-eye.R"),
+                tracker: (
+                    target: 13,
+                    limit: (1.0472, 1.0472, 0.0),
+                    speed: 4,
+                ),
             ),
         ),
     ]

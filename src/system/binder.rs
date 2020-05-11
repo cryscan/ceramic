@@ -12,7 +12,10 @@ use amethyst::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::system::kinematics::{Chain, Direction, Hinge, Pole};
+use crate::system::{
+    animal::Tracker,
+    kinematics::{Chain, Direction, Hinge, Pole},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
@@ -84,4 +87,4 @@ macro_rules! impl_bundle {
     }
 }
 
-impl_bundle![Chain, Direction, Hinge, Pole];
+impl_bundle![Chain, Direction, Hinge, Pole, Tracker];

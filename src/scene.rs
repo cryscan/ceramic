@@ -12,6 +12,7 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
+    animal::TrackerPrefab,
     binder::Binder,
     kinematics::ConstrainPrefab,
     player::Player,
@@ -31,6 +32,7 @@ pub struct ScenePrefab {
     player: Option<Player>,
     binder: Option<Binder>,
     constrain: Option<ConstrainPrefab>,
+    tracker: Option<TrackerPrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,

@@ -3,7 +3,7 @@ use std::ops::Neg;
 use amethyst::{
     assets::{PrefabData, ProgressCounter},
     core::{
-        math::{Matrix4, Point3, UnitQuaternion, Vector3},
+        math::{Point3, UnitQuaternion, Vector3},
         Parent,
         Transform,
     },
@@ -18,12 +18,15 @@ use amethyst::{
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
-use crate::system::binder::Binder;
+use crate::{
+    system::binder::Binder,
+    utils::transform::Getter,
+};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
-    pub length: usize,
     pub target: Entity,
+    pub length: usize,
 }
 
 impl Component for Chain {
@@ -32,16 +35,15 @@ impl Component for Chain {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct ChainPrefab {
-    length: usize,
     target: usize,
+    length: usize,
 }
 
 impl<'a> PrefabData<'a> for ChainPrefab {
     type SystemData = WriteStorage<'a, Chain>;
     type Result = ();
 
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
-    ) -> Result<Self::Result, Error> {
+    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
         let component = Chain {
             length: self.length,
             target: entities[self.target],
@@ -52,8 +54,8 @@ impl<'a> PrefabData<'a> for ChainPrefab {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Direction {
-    axes: Option<[Vector3<f32>; 2]>,
     target: Entity,
+    rotation: Option<UnitQuaternion<f32>>,
 }
 
 impl Component for Direction {
@@ -62,7 +64,6 @@ impl Component for Direction {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DirectionPrefab {
-    axes: Option<[Vector3<f32>; 2]>,
     target: usize,
 }
 
@@ -70,11 +71,10 @@ impl<'a> PrefabData<'a> for DirectionPrefab {
     type SystemData = WriteStorage<'a, Direction>;
     type Result = ();
 
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
-    ) -> Result<Self::Result, Error> {
+    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
         let component = Direction {
-            axes: self.axes.clone(),
             target: entities[self.target],
+            rotation: None,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -83,6 +83,7 @@ impl<'a> PrefabData<'a> for DirectionPrefab {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 pub struct Hinge {
+    #[serde(skip_deserializing, skip_serializing)]
     axis: Option<Vector3<f32>>,
     limit: Option<[f32; 2]>,
 }
@@ -109,9 +110,7 @@ impl<'a> PrefabData<'a> for PolePrefab {
     type SystemData = WriteStorage<'a, Pole>;
     type Result = ();
 
-    fn add_to_entity(
-        &self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity],
-    ) -> Result<Self::Result, Error> {
+    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
         let component = Pole { target: entities[self.target] };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -126,32 +125,15 @@ pub enum ConstrainPrefab {
     Pole(PolePrefab),
 }
 
-trait Helper {
-    fn global_transform(&self, entity: Entity) -> &Matrix4<f32>;
-    fn local_transform(&self, entity: Entity) -> Matrix4<f32>;
-}
-
-impl Helper for WriteStorage<'_, Transform> {
-    #[inline]
-    fn global_transform(&self, entity: Entity) -> &Matrix4<f32> {
-        self.get(entity).unwrap().global_matrix()
-    }
-
-    #[inline]
-    fn local_transform(&self, entity: Entity) -> Matrix4<f32> {
-        self.get(entity).unwrap().global_view_matrix()
-    }
-}
-
 #[derive(Default, SystemDesc)]
 pub struct KinematicsSystem;
 
 impl<'a> System<'a> for KinematicsSystem {
     type SystemData = (
         Entities<'a>,
+        ReadStorage<'a, Binder>,
         ReadStorage<'a, Parent>,
         WriteStorage<'a, Transform>,
-        ReadStorage<'a, Binder>,
         ReadStorage<'a, Chain>,
         WriteStorage<'a, Direction>,
         WriteStorage<'a, Hinge>,
@@ -162,9 +144,9 @@ impl<'a> System<'a> for KinematicsSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (
             entities,
+            binders,
             parents,
             mut transforms,
-            binders,
             chains,
             mut directions,
             mut hinges,
@@ -211,9 +193,20 @@ impl<'a> System<'a> for KinematicsSystem {
                     target = transform_point(target);
                 }
 
+                // Align the end with the target.
+                if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
+                    .and_then(|rotation| rotation.axis_angle()) {
+                    transforms
+                        .get_mut(parent)
+                        .unwrap()
+                        .append_rotation(axis, angle);
+                    target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                        .transform_point(&target);
+                }
+
                 // Auto-derive axes. Axes are local axes of target relating to parent.
                 if let Some(direction) = directions.get_mut(parent) {
-                    if direction.axes.is_none() {
+                    if direction.rotation.is_none() {
                         let transform_vector = |vector| {
                             let global = transforms
                                 .global_transform(direction.target)
@@ -222,28 +215,25 @@ impl<'a> System<'a> for KinematicsSystem {
                         };
                         let dir = transform_vector(Vector3::z());
                         let up = transform_vector(Vector3::y());
-                        direction.axes.replace([dir, up]);
+                        direction.rotation.replace(UnitQuaternion::face_towards(&dir, &up));
                     }
                 }
 
                 if let Some(direction) = directions.get(parent) {
-                    if let Some([dir, up]) = &direction.axes {
-                        let transform_vector = |vector| {
-                            let global = transforms
-                                .global_transform(direction.target)
-                                .transform_vector(&vector);
-                            transforms.local_transform(parent).transform_vector(&global)
+                    if let Some(rotation) = &direction.rotation {
+                        let target_rotation = {
+                            let transform_vector = |vector| {
+                                let global = transforms
+                                    .global_transform(direction.target)
+                                    .transform_vector(&vector);
+                                transforms.local_transform(parent).transform_vector(&global)
+                            };
+                            let dir = transform_vector(Vector3::z());
+                            let up = transform_vector(Vector3::y());
+                            UnitQuaternion::face_towards(&dir, &up)
                         };
-                        let target_dir = transform_vector(Vector3::z());
-                        let target_up = transform_vector(Vector3::y());
 
-                        let rotation = UnitQuaternion::rotation_between(&dir, &target_dir)
-                            .unwrap_or(UnitQuaternion::identity());
-                        let target_up = rotation.inverse_transform_vector(&target_up);
-                        let rotation = UnitQuaternion::rotation_between(&up, &target_up)
-                            .unwrap_or(UnitQuaternion::identity())
-                            * rotation;
-
+                        let rotation = target_rotation * rotation.inverse();
                         if let Some((axis, angle)) = rotation.axis_angle() {
                             transforms
                                 .get_mut(parent)
@@ -252,17 +242,6 @@ impl<'a> System<'a> for KinematicsSystem {
                             target = UnitQuaternion::from_axis_angle(&axis, -angle)
                                 .transform_point(&target);
                         }
-                    }
-                } else {
-                    // Align the end with the target.
-                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
-                        .and_then(|rotation| rotation.axis_angle()) {
-                        transforms
-                            .get_mut(parent)
-                            .unwrap()
-                            .append_rotation(axis, angle);
-                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                            .transform_point(&target);
                     }
                 }
 
