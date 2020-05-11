@@ -282,8 +282,8 @@ Prefab(
                 binder: (name: "DEF-spine.005"),
                 tracker: (
                     target: 13,
-                    limit: (1.0472, 1.0472, 0.0),
-                    speed: 4,
+                    limit: (1.0472, 0.7854, 0.5236),
+                    speed: 2,
                 ),
             ),
         ),
@@ -292,7 +292,7 @@ Prefab(
                 binder: (name: "DEF-eye.L"),
                 tracker: (
                     target: 13,
-                    limit: (0.5235, 0.5235, 0.5235),
+                    limit: (0.7854, 0.0, 0.7854),
                     speed: 4,
                 ),
             ),
@@ -302,7 +302,7 @@ Prefab(
                 binder: (name: "DEF-eye.R"),
                 tracker: (
                     target: 13,
-                    limit: (1.0472, 1.0472, 0.0),
+                    limit: (0.7854, 0.0, 0.7854),
                     speed: 4,
                 ),
             ),
