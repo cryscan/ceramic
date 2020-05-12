@@ -6,12 +6,7 @@ use amethyst::{
     derive::SystemDesc,
     ecs::prelude::*,
     Error,
-    renderer::{
-        debug_drawing::DebugLines,
-        palette::Srgba,
-    },
 };
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -22,7 +17,7 @@ use crate::{
 #[derive(Debug, Copy, Clone)]
 pub struct Tracker {
     target: Entity,
-    limit: Option<[f32; 3]>,
+    limit: Option<f32>,
     speed: f32,
     rotation: Option<UnitQuaternion<f32>>,
 }
@@ -34,7 +29,7 @@ impl Component for Tracker {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct TrackerPrefab {
     target: usize,
-    limit: Option<[f32; 3]>,
+    limit: Option<f32>,
     speed: f32,
 }
 
@@ -63,7 +58,6 @@ impl<'a> System<'a> for TrackSystem {
         WriteStorage<'a, Transform>,
         WriteStorage<'a, Tracker>,
         Read<'a, Time>,
-        Write<'a, DebugLines>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -73,7 +67,6 @@ impl<'a> System<'a> for TrackSystem {
             mut transforms,
             mut trackers,
             time,
-            mut debug_lines
         ) = data;
         for (tracker, transform, _) in (&mut trackers, &transforms, !&binders).join() {
             if tracker.rotation.is_none() {
@@ -86,38 +79,27 @@ impl<'a> System<'a> for TrackSystem {
             let origin = &Point3::<f32>::origin();
             let target = transforms.global_transform(tracker.target).transform_point(origin);
             let joint = transforms.global_transform(entity).transform_point(origin);
-            {
-                let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                debug_lines.draw_line(target.clone(), joint.clone(), color);
-            }
             let target = target - joint;
 
             let transform = transforms.local_transform(entity);
             let target = transform.transform_vector(&target);
             let up = transform.transform_vector(&Vector3::y());
+            let mut target = UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0)
+                * UnitQuaternion::face_towards(&target, &up);
 
-            let target = {
-                let correction = UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0);
-                let face = UnitQuaternion::face_towards(&target, &up);
-                let rotation = tracker.rotation.unwrap_or_else(UnitQuaternion::identity);
-                correction * face * rotation
-            };
-            let transform = transforms.get_mut(entity).unwrap();
-            let current = transform.rotation();
+            let rotation = tracker.rotation.unwrap_or_else(UnitQuaternion::identity);
+            if let Some((axis, angle)) = (rotation.inverse() * target).axis_angle() {
+                if let Some(limit) = tracker.limit {
+                    let angle = angle.min(limit);
+                    let delta = UnitQuaternion::from_axis_angle(&axis, angle);
+                    target = delta * rotation * rotation;
+                }
+            }
 
+            let current = transforms.get(entity).unwrap().rotation();
             let interpolation = 1.0 - (-tracker.speed * time.delta_seconds()).exp();
             if let Some(rotation) = current.try_slerp(&target, interpolation, EPSILON) {
-                if let Some(limit) = tracker.limit {
-                    let (x, y, z) = rotation.euler_angles();
-                    let (x, y, z) = [x, y, z].iter()
-                        .zip(limit.iter())
-                        .map(|(&angle, &limit)| angle.min(limit).max(-limit))
-                        .collect_tuple()
-                        .unwrap();
-                    transform.set_rotation_euler(x, y, z);
-                } else {
-                    transform.set_rotation(rotation);
-                }
+                transforms.get_mut(entity).unwrap().set_rotation(rotation);
             }
         }
     }
