@@ -5,6 +5,16 @@ Prefab(
             data: (
                 model: File("model/cat.glb", ()),
                 transform: (),
+                player: (speed: 4),
+                motor: (
+                    max_angular_velocity: 12.57,
+                    max_duty_factor: 0.8,
+                    step_length_limit: (0.25, 0.75),
+                ),
+                quadruped: (
+                    feet: (5, 7, 9, 11),
+                    anchors: (13, 14, 15, 16),
+                ),
             ),
         ),
         (
@@ -62,7 +72,7 @@ Prefab(
                 ),
             ),
         ),
-        (   // 5 left rear control handle
+        (   // 5 LH control handle
             data: (
                 // model: File("model/cube.glb", ()),
                 transform: (
@@ -71,7 +81,7 @@ Prefab(
                 // player: (speed: 4.0),
             ),
         ),
-        (   // 6 left thigh pole
+        (   // 6 LH pole
             parent: 0,
             data: (
                 transform: (
@@ -79,7 +89,7 @@ Prefab(
                 ),
             ),
         ),
-        (   // 7 right rear control handle
+        (   // 7 RH control handle
             data: (
                 // model: File("model/cube.glb", ()),
                 transform: (
@@ -88,7 +98,7 @@ Prefab(
                 // player: (speed: 4.0),
             ),
         ),
-        (   // 8 right thigh pole
+        (   // 8 RH pole
             parent: 0,
             data: (
                 transform: (
@@ -96,7 +106,7 @@ Prefab(
                 ),
             ),
         ),
-        (   // 9 left front control handle
+        (   // 9 LF control handle
             data: (
                 // model: File("model/cube.glb", ()),
                 transform: (
@@ -105,7 +115,7 @@ Prefab(
                 // player: (speed: 4.0),
             ),
         ),
-        (   // 10 left forearm pole
+        (   // 10 LF pole
             parent: 0,
             data: (
                 transform: (
@@ -113,7 +123,7 @@ Prefab(
                 ),
             ),
         ),
-        (   // 11 right front control handle
+        (   // 11 RF control handle
             data: (
                 // model: File("model/cube.glb", ()),
                 transform: (
@@ -122,7 +132,7 @@ Prefab(
                 // player: (speed: 4.0),
             ),
         ),
-        (   // 12 right forearm pole
+        (   // 12 RF pole
             parent: 0,
             data: (
                 transform: (
@@ -130,29 +140,56 @@ Prefab(
                 ),
             ),
         ),
-        (   // 13 head track target
+        (   // 13 LH anchor
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (0.5, 1.4, 0.8),
+                ),
+            ),
+        ),
+        (   // 14 RH anchor
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (-0.5, 1.4, 0.8),
+                ),
+            ),
+        ),
+        (   // 15 LF anchor
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (0.7, 1.0, -0.7),
+                ),
+            ),
+        ),
+        (   // 16 LF anchor
+            parent: 0,
+            data: (
+                transform: (
+                    translation: (-0.7, 1.0, -0.7),
+                ),
+            ),
+        ),
+        (   // 17 head track target
             parent: 2,
             data: (
                 model: File("model/cube.glb", ()),
                 transform: (
                     translation: (0.0, 0.0, 2.0),
                 ),
-                player: (speed: 4.0),
+                // player: (speed: 4.0),
             ),
         ),
         // left rear leg
         (
             data: (
-                binder: (name: "IK-r_leg.L"),
-                constrain: Chain((
-                    length: 5,
-                    target: 5,
-                )),
-            ),
-        ),
-        (
-            data: (
                 binder: (name: "DEF-r_toe.L"),
+                chain: (
+                    length: 4,
+                    target: 5,
+                ),
                 constrain: Direction((target: 5)),
             ),
         ),
@@ -177,16 +214,11 @@ Prefab(
         // right rear leg
         (
             data: (
-                binder: (name: "IK-r_leg.R"),
-                constrain: Chain((
-                    length: 5,
-                    target: 7,
-                )),
-            ),
-        ),
-        (
-            data: (
                 binder: (name: "DEF-r_toe.R"),
+                chain: (
+                    length: 4,
+                    target: 7,
+                ),
                 constrain: Direction((target: 7)),
             ),
         ),
@@ -211,16 +243,11 @@ Prefab(
         // left front leg
         (
             data: (
-                binder: (name: "IK-f_leg.L"),
-                constrain: Chain((
-                    length: 5,
-                    target: 9,
-                )),
-            ),
-        ),
-        (
-            data: (
                 binder: (name: "DEF-f_toe.L"),
+                chain: (
+                    length: 4,
+                    target: 9,
+                ),
                 constrain: Direction((target: 9)),
             ),
         ),
@@ -245,16 +272,11 @@ Prefab(
         // right front leg
         (
             data: (
-                binder: (name: "IK-f_leg.R"),
-                constrain: Chain((
-                    length: 5,
-                    target: 11,
-                )),
-            ),
-        ),
-        (
-            data: (
                 binder: (name: "DEF-f_toe.R"),
+                chain: (
+                    length: 4,
+                    target: 11,
+                ),
                 constrain: Direction((target: 11)),
             ),
         ),
@@ -281,7 +303,7 @@ Prefab(
             data: (
                 binder: (name: "DEF-spine.005"),
                 tracker: (
-                    target: 13,
+                    target: 17,
                     limit: 1.5708,
                     speed: 4,
                 ),
@@ -291,7 +313,7 @@ Prefab(
             data: (
                 binder: (name: "DEF-eye.L"),
                 tracker: (
-                    target: 13,
+                    target: 17,
                     limit: 0.7854,
                     speed: 4,
                 ),
@@ -301,7 +323,7 @@ Prefab(
             data: (
                 binder: (name: "DEF-eye.R"),
                 tracker: (
-                    target: 13,
+                    target: 17,
                     limit: 0.7854,
                     speed: 4,
                 ),

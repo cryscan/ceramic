@@ -1,4 +1,4 @@
-#![feature(option_zip)]
+#![feature(tau_constant, option_zip)]
 
 use amethyst::{
     animation::{AnimationBundle, VertexSkinningBundle},
@@ -20,7 +20,7 @@ use crate::{
     scene::ScenePrefab,
     state::load::LoadState,
     system::{
-        animal::TrackSystem,
+        animal::{LocomotionSystem, TrackSystem},
         binder::BinderBundle,
         kinematics::KinematicsSystem,
         player::PlayerSystem,
@@ -46,7 +46,7 @@ fn main() -> amethyst::Result<()> {
         "animation_control",
         "sampler_interpolation",
     )
-        .with_dep(&["gltf_loader", "kinematics"]);
+        .with_dep(&["gltf_loader"]);
 
     let input_bundle = InputBundle::<StringBindings>::new()
         .with_bindings_from_file(bindings_path)?;
@@ -71,23 +71,24 @@ fn main() -> amethyst::Result<()> {
         )
         .with(PlayerSystem::default(), "player", &[])
         .with_bundle(BinderBundle::new())?
-        .with(KinematicsSystem::default(), "kinematics", &[])
-        .with(TrackSystem::default(), "animal_track", &[])
         .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[
             "animation_control",
             "sampler_interpolation",
             "free_rotation",
-            "player",
-            "kinematics",
-            "animal_track",
         ]))?
         .with_bundle(VertexSkinningBundle::new().with_dep(&[
             "transform_system",
             "animation_control",
             "sampler_interpolation",
         ]))?
+        .with(KinematicsSystem::default(), "kinematics", &["transform_system"])
+        .with(TrackSystem::default(), "track", &["transform_system"])
+        .with(LocomotionSystem::default(), "locomotion", &[
+            "player",
+            "transform_system"
+        ])
         .with_bundle(input_bundle)?
         .with(AutoFovSystem::new(), "auto_fov", &[]);
 

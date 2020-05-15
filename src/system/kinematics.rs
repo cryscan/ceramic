@@ -16,11 +16,12 @@ use amethyst::{
     },
 };
 use itertools::{iterate, Itertools};
+use num_traits::Signed;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     system::binder::Binder,
-    utils::transform::Getter,
+    utils::transform::Adaptor,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -119,7 +120,6 @@ impl<'a> PrefabData<'a> for PolePrefab {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
-    Chain(ChainPrefab),
     Direction(DirectionPrefab),
     Hinge(Hinge),
     Pole(PolePrefab),
@@ -166,18 +166,16 @@ impl<'a> System<'a> for KinematicsSystem {
                 .take(chain.length)
                 .collect_vec();
 
-            let origin = &Point3::<f32>::origin();
-
             // Render debug lines.
             for (&start, &end) in entities.iter().tuple_windows() {
-                let start = transforms.global_transform(start).transform_point(origin);
-                let end = transforms.global_transform(end).transform_point(origin);
+                let start = transforms.global_position(start);
+                let end = transforms.global_position(end);
                 let color = Srgba::new(0.0, 0.0, 0.0, 1.0);
                 debug_lines.draw_line(start, end, color);
             }
 
-            let mut end = origin.clone();
-            let target = transforms.global_transform(chain.target).transform_point(origin);
+            let mut end = Point3::<f32>::origin();
+            let target = transforms.global_position(chain.target);
             let mut target = transforms.local_transform(entity).transform_point(&target);
 
             // Direction of entity is the rotation of its parent.
@@ -204,51 +202,13 @@ impl<'a> System<'a> for KinematicsSystem {
                         .transform_point(&target);
                 }
 
-                // Auto-derive axes. Axes are local axes of target relating to parent.
-                if let Some(direction) = directions.get_mut(parent) {
-                    if direction.rotation.is_none() {
-                        let transform_vector = |vector| {
-                            let global = transforms
-                                .global_transform(direction.target)
-                                .transform_vector(&vector);
-                            transforms.local_transform(parent).transform_vector(&global)
-                        };
-                        let dir = transform_vector(Vector3::z());
-                        let up = transform_vector(Vector3::y());
-                        direction.rotation.replace(UnitQuaternion::face_towards(&dir, &up));
-                    }
-                }
-
-                if let Some(direction) = directions.get(parent) {
-                    if let Some(rotation) = &direction.rotation {
-                        let target_rotation = {
-                            let transform_vector = |vector| {
-                                let global = transforms
-                                    .global_transform(direction.target)
-                                    .transform_vector(&vector);
-                                transforms.local_transform(parent).transform_vector(&global)
-                            };
-                            let dir = transform_vector(Vector3::z());
-                            let up = transform_vector(Vector3::y());
-                            UnitQuaternion::face_towards(&dir, &up)
-                        };
-
-                        let rotation = target_rotation * rotation.inverse();
-                        if let Some((axis, angle)) = rotation.axis_angle() {
-                            transforms
-                                .get_mut(parent)
-                                .unwrap()
-                                .append_rotation(axis, angle);
-                            target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                                .transform_point(&target);
-                        }
-                    }
-                }
-
                 // Align the joint with pole.
                 if let Some(pole) = poles.get(parent) {
-                    let pole = transforms.global_transform(pole.target).transform_point(origin);
-                    let pole = transforms.local_transform(parent).transform_point(&pole).coords;
+                    let pole = transforms.global_position(pole.target);
+                    let pole = transforms
+                        .local_transform(parent)
+                        .transform_point(&pole)
+                        .coords;
                     let direction = transforms
                         .get(child)
                         .unwrap()
@@ -257,10 +217,10 @@ impl<'a> System<'a> for KinematicsSystem {
 
                     // Draw debug line for pole.
                     {
-                        let start = transforms.global_transform(child).transform_point(origin);
-                        let end = &start + &transforms.global_transform(parent).transform_vector(&pole);
+                        let position = transforms.global_position(child);
+                        let direction = transforms.global_transform(parent).transform_vector(&pole);
                         let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
-                        debug_lines.draw_line(start, end, color);
+                        debug_lines.draw_direction(position, direction, color);
                     }
 
                     let pole = pole - axis.scale(pole.dot(&axis));
@@ -294,11 +254,10 @@ impl<'a> System<'a> for KinematicsSystem {
                     if let Some(axis) = &hinge.axis {
                         // Draw debug line for hinge axis.
                         {
-                            let transform = transforms.global_transform(parent);
-                            let start = transform.transform_point(origin);
-                            let end = &start + transform.transform_vector(axis);
+                            let position = transforms.global_position(parent);
+                            let direction = transforms.global_transform(parent).transform_vector(axis);
                             let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
-                            debug_lines.draw_line(start, end, color);
+                            debug_lines.draw_direction(position, direction, color);
                         }
 
                         let parent_axis = transforms
@@ -327,7 +286,7 @@ impl<'a> System<'a> for KinematicsSystem {
                                 .rotation()
                                 .axis_angle() {
                                 let (axis, angle) = {
-                                    if axis.dot(hinge_axis) < 0.0 { (axis.neg(), angle.neg()) } else { (axis, angle) }
+                                    if axis.dot(hinge_axis).is_negative() { (axis.neg(), angle.neg()) } else { (axis, angle) }
                                 };
                                 let angle = angle.min(max).max(min) - angle;
 
@@ -337,6 +296,42 @@ impl<'a> System<'a> for KinematicsSystem {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        for (entity, direction, _, _) in (&*entities, &mut directions, &chains, !&binders).join() {
+            if direction.rotation.is_none() {
+                let transform_vector = |vector| {
+                    let global = transforms
+                        .global_transform(direction.target)
+                        .transform_vector(&vector);
+                    transforms.local_transform(entity).transform_vector(&global)
+                };
+                let dir = transform_vector(Vector3::z());
+                let up = transform_vector(Vector3::y());
+                direction.rotation.replace(UnitQuaternion::face_towards(&dir, &up));
+            }
+
+            if let Some(rotation) = &direction.rotation {
+                let target_rotation = {
+                    let transform_vector = |vector| {
+                        let global = transforms
+                            .global_transform(direction.target)
+                            .transform_vector(&vector);
+                        transforms.local_transform(entity).transform_vector(&global)
+                    };
+                    let dir = transform_vector(Vector3::z());
+                    let up = transform_vector(Vector3::y());
+                    UnitQuaternion::face_towards(&dir, &up)
+                };
+
+                let rotation = target_rotation * rotation.inverse();
+                if let Some((axis, angle)) = rotation.axis_angle() {
+                    transforms
+                        .get_mut(entity)
+                        .unwrap()
+                        .append_rotation(axis, angle);
                 }
             }
         }
