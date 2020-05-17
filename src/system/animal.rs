@@ -126,8 +126,8 @@ enum State {
 struct Config {
     max_angular_velocity: f32,
     max_duty_factor: f32,
-    default_flight_time: f32,
     step_limit: [f32; 2],
+    flight_time: f32,
     flight_factor: f32,
 }
 
@@ -166,10 +166,11 @@ impl Limb {
     }
 
     fn flight_time(&self) -> f32 {
-        if self.angular_velocity > 0.0 {
+        let threshold = TAU * (1.0 - self.config.max_duty_factor) / self.config.flight_time;
+        if self.angular_velocity > threshold {
             TAU * (1.0 - self.duty_factor) / self.angular_velocity
         } else {
-            self.config.default_flight_time
+            self.config.flight_time
         }
     }
 }
@@ -317,19 +318,15 @@ impl<'a> System<'a> for LocomotionSystem {
                             if time < flight_time {
                                 let translation = next - &stance;
                                 let current = &stance + Vector3::zero().lerp(&translation, time / flight_time);
-                                let target = {
+                                let current = {
                                     let step_length = step_radius * 2.0;
-                                    let coefficient = 4.0 * step_length * limb.config.flight_factor / flight_time;
-                                    let lift = coefficient * time * (flight_time - time);
+                                    let height = 4.0 * step_length * limb.config.flight_factor / flight_time;
+                                    let height = height * time * (flight_time - time);
                                     let direction = (anchor - foot)
                                         .try_normalize(EPSILON)
                                         .unwrap_or(Vector3::zero());
-                                    current + direction * lift
+                                    current + direction * height
                                 };
-                                {
-                                    let color = Srgba::new(1.0, 0.0, 1.0, 1.0);
-                                    debug_lines.draw_line(current.clone(), target.clone(), color);
-                                }
 
                                 let rotation = transforms
                                     .get(entity)
@@ -339,7 +336,7 @@ impl<'a> System<'a> for LocomotionSystem {
                                 transforms
                                     .get_mut(limb.foot)
                                     .unwrap()
-                                    .set_translation(target.coords)
+                                    .set_translation(current.coords)
                                     .set_rotation(rotation);
 
                                 State::Flight { stance, time: delta_seconds + time }

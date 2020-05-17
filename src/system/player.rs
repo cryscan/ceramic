@@ -23,6 +23,8 @@ pub struct Player {
     linear_speed: f32,
     #[get_copy = "pub"]
     angular_speed: f32,
+    stiffness: f32,
+
     #[serde(skip, default = "Vector3::zero")]
     #[get = "pub"]
     translation: Vector3<f32>,
@@ -54,20 +56,27 @@ impl<'a> System<'a> for PlayerSystem {
 
     fn run(&mut self, (mut players, mut transforms, input, time): Self::SystemData) {
         for (player, transform) in (&mut players, &mut transforms).join() {
-            let movement = Vector3::new(
+            let translation = Vector3::new(
                 0.0,
                 0.0,
                 input.axis_value("move_z").unwrap_or(0.0),
-            );
-            player.rotation = UnitQuaternion::from_euler_angles(
+            )
+                .try_normalize(EPSILON)
+                .unwrap_or(Vector3::zero());
+            let rotation = UnitQuaternion::from_euler_angles(
                 0.0,
                 input.axis_value("move_x").unwrap_or(0.0),
                 0.0,
             );
-            player.translation = movement.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-            transform.append_translation(time.delta_seconds() * player.linear_speed * &player.translation);
+
+            let delta_seconds = time.delta_seconds();
+            let decay = 1.0 - (-player.stiffness * delta_seconds).exp();
+            player.translation += decay * (translation - player.translation.clone());
+            player.rotation *= (player.rotation.inverse() * rotation).powf(decay);
+
+            transform.append_translation(delta_seconds * player.linear_speed * &player.translation);
             if let Some((axis, angle)) = player.rotation.axis_angle() {
-                transform.append_rotation(axis, angle * time.delta_seconds());
+                transform.append_rotation(axis, angle * delta_seconds);
             }
         }
     }

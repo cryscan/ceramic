@@ -7,15 +7,17 @@ Prefab(
                 transform: (),
                 player: (
                     linear_speed: 4,
-                    angular_speed: 3.142,
+                    angular_speed: 6.283,
+                    stiffness: 8,
                 ),
                 quadruped: {
                     feet: (5, 7, 9, 11),
                     anchors: (13, 14, 15, 16),
+
                     max_angular_velocity: 12.57,
-                    max_duty_factor: 0.9,
-                    default_flight_time: 0.2,
+                    max_duty_factor: 0.8,
                     step_limit: (0.2, 1.2),
+                    flight_time: 0.4,
                     flight_factor: 1.0,
                 },
             ),
