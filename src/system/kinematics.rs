@@ -16,7 +16,6 @@ use amethyst::{
     },
 };
 use itertools::{iterate, Itertools};
-use num_traits::Signed;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -26,8 +25,8 @@ use crate::{
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
-    pub target: Entity,
-    pub length: usize,
+    target: Entity,
+    length: usize,
 }
 
 impl Component for Chain {
@@ -95,7 +94,7 @@ impl Component for Hinge {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Pole {
-    pub target: Entity,
+    target: Entity,
 }
 
 impl Component for Pole {
@@ -286,7 +285,7 @@ impl<'a> System<'a> for KinematicsSystem {
                                 .rotation()
                                 .axis_angle() {
                                 let (axis, angle) = {
-                                    if axis.dot(hinge_axis).is_negative() { (axis.neg(), angle.neg()) } else { (axis, angle) }
+                                    if axis.dot(hinge_axis) < 0.0 { (axis.neg(), angle.neg()) } else { (axis, angle) }
                                 };
                                 let angle = angle.min(max).max(min) - angle;
 

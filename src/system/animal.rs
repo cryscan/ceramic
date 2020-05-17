@@ -6,15 +6,13 @@ use std::{
 use amethyst::{
     assets::PrefabData,
     core::{math::{Point3, UnitQuaternion, Vector3}, Time, Transform},
-    derive::{PrefabData, SystemDesc},
+    derive::SystemDesc,
     ecs::prelude::*,
     Error,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
-use getset::CopyGetters;
 use itertools::Itertools;
 use num_traits::identities::Zero;
-use num_traits::Signed;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -118,6 +116,8 @@ impl<'a> System<'a> for TrackSystem {
     }
 }
 
+/*
+
 #[derive(CopyGetters, Debug, Default, Copy, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 #[get_copy = "pub"]
@@ -131,7 +131,7 @@ pub struct Motor {
 
     pub max_angular_velocity: f32,
     pub max_duty_factor: f32,
-    pub step_length_limit: [f32; 2],
+    pub step_limit: [f32; 2],
 }
 
 impl Motor {
@@ -146,7 +146,7 @@ impl Motor {
     /// Determine the parameters given a speed.
     /// Increase angular velocity first, then radius; duty factor decreases as speed goes up.
     fn with_speed(&mut self, speed: f32) -> &Self {
-        let min_radius = self.step_length_limit[0] / self.max_duty_factor;
+        let min_radius = self.step_limit[0] / self.max_duty_factor;
         self.radius = min_radius;
 
         let angular_velocity = speed / min_radius;
@@ -157,7 +157,7 @@ impl Motor {
         }
 
         let step_length = (TAU * self.radius * self.max_duty_factor)
-            .min(self.step_length_limit[1]);
+            .min(self.step_limit[1]);
         self.duty_factor = step_length / (TAU * self.radius);
 
         self
@@ -168,19 +168,61 @@ impl Component for Motor {
     type Storage = DenseVecStorage<Self>;
 }
 
+ */
+
+#[derive(Debug, Copy, Clone)]
+enum State {
+    Stance,
+    Flight { stance: Point3<f32>, time: f32 },
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Limb {
-    pub foot: Entity,
-    pub anchor: Entity,
-    pub angle: f32,
-    pub stance_position: Point3<f32>,
-    pub home: Option<Point3<f32>>,
-    pub length: Option<f32>,
+    foot: Entity,
+    anchor: Entity,
+    state: State,
+
+    home: Option<Point3<f32>>,
+    length: Option<f32>,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Quadruped {
-    pub limbs: [Limb; 4],
+    limbs: [Limb; 4],
+
+    radius: f32,
+    angular_velocity: f32,
+    duty_factor: f32,
+
+    max_angular_velocity: f32,
+    max_duty_factor: f32,
+    default_flight_time: f32,
+    step_limit: [f32; 2],
+}
+
+impl Quadruped {
+    fn match_speed(&mut self, speed: f32) {
+        let [min_step, max_step] = self.step_limit;
+
+        let min_radius = min_step / self.max_duty_factor / TAU;
+        self.angular_velocity = (speed / min_radius).min(self.max_angular_velocity);
+        self.radius = if self.angular_velocity > 0.0 { speed / self.angular_velocity } else { min_radius };
+
+        let step_length = (TAU * self.radius * self.max_duty_factor).min(max_step);
+        self.duty_factor = step_length / (TAU * self.radius);
+    }
+
+    fn step_radius(&self) -> f32 {
+        PI * self.radius * self.duty_factor
+    }
+
+    fn flight_time(&self) -> f32 {
+        if self.angular_velocity > 0.0 {
+            TAU * (1.0 - self.duty_factor) / self.angular_velocity
+        } else {
+            self.default_flight_time
+        }
+    }
 }
 
 impl Component for Quadruped {
@@ -189,8 +231,13 @@ impl Component for Quadruped {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct QuadrupedPrefab {
-    pub feet: [usize; 4],
-    pub anchors: [usize; 4],
+    feet: [usize; 4],
+    anchors: [usize; 4],
+
+    max_angular_velocity: f32,
+    max_duty_factor: f32,
+    default_flight_time: f32,
+    step_limit: [f32; 2],
 }
 
 impl<'a> PrefabData<'a> for QuadrupedPrefab {
@@ -203,14 +250,24 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             .map(|(&foot, &anchor)| Limb {
                 foot: entities[foot],
                 anchor: entities[anchor],
-                angle: PI,
-                stance_position: Point3::origin(),
+                state: State::Stance,
                 home: None,
                 length: None,
             })
             .collect_vec();
         let limbs = vec[..].try_into().unwrap();
-        let component = Quadruped { limbs };
+        let component = Quadruped {
+            limbs,
+
+            radius: 0.0,
+            angular_velocity: 0.0,
+            duty_factor: 0.0,
+
+            max_angular_velocity: self.max_angular_velocity,
+            max_duty_factor: self.max_duty_factor,
+            default_flight_time: self.default_flight_time,
+            step_limit: self.step_limit,
+        };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -223,7 +280,6 @@ impl<'a> System<'a> for LocomotionSystem {
     type SystemData = (
         Entities<'a>,
         WriteStorage<'a, Transform>,
-        WriteStorage<'a, Motor>,
         WriteStorage<'a, Quadruped>,
         ReadStorage<'a, Player>,
         Read<'a, Time>,
@@ -234,16 +290,20 @@ impl<'a> System<'a> for LocomotionSystem {
         let (
             entities,
             mut transforms,
-            mut motors,
             mut quadrupeds,
             players,
             time,
             mut debug_lines,
         ) = data;
 
-        for (entity, motor, quadruped, player) in (&*entities, &mut motors, &mut quadrupeds, &players).join() {
-            let velocity = player.movement() * player.speed();
-            motor.with_speed(velocity.norm());
+        for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
+            let velocity = player.movement().scale(player.speed());
+            let speed = velocity.norm();
+            quadruped.match_speed(speed);
+
+            let step_radius = quadruped.step_radius();
+            let flight_time = quadruped.flight_time();
+            let delta_seconds = time.delta_seconds();
 
             for limb in quadruped.limbs.iter_mut() {
                 if limb.home.is_none() {
@@ -260,50 +320,66 @@ impl<'a> System<'a> for LocomotionSystem {
                 }
 
                 if let Some((home, _length)) = limb.home.zip(limb.length) {
+                    let home = transforms.global_transform(entity).transform_point(&home);
+                    let foot = transforms.global_position(limb.foot);
+                    let radial = &foot - &home;
                     {
-                        let color = Srgba::new(0.0, 0.0, 1.0, 1.0);
+                        let color = Srgba::new(0.0, 1.0, 0.0, quadruped.duty_factor);
                         debug_lines.draw_rotated_circle(
-                            limb.stance_position.clone(),
-                            0.4,
+                            home.clone(),
+                            step_radius,
                             10,
                             UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0),
                             color,
                         );
+
+                        let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
+                        debug_lines.draw_direction(home.clone(), radial.clone(), color);
                     }
 
-                    if motor.is_stance(limb.angle) {
-                        limb.stance_position = transforms.global_position(limb.foot);
-                    } else {
-                        let step = motor.step_length();
-                        let transform = transforms.global_transform(entity);
-                        let home = transform.transform_point(&home);
-                        let movement = transform.transform_vector(&player.movement());
-                        let next = &home + step * movement;
-                        let delta = next - &limb.stance_position;
-
-                        {
-                            let start_color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                            let end_color = Srgba::new(0.0, 0.0, 1.0, 1.0);
-                            debug_lines.draw_gradient_line(limb.stance_position.clone(), next.clone(), start_color, end_color);
+                    limb.state = match &limb.state {
+                        State::Stance => {
+                            if radial.norm() > step_radius {
+                                let stance = foot;
+                                State::Flight { stance, time: 0.0 }
+                            } else {
+                                State::Stance
+                            }
                         }
+                        State::Flight { stance, time } => {
+                            let stance = stance.clone();
+                            let time = *time;
 
-                        let angle = {
-                            let angle = limb.angle.cos().acos();
-                            if limb.angle.sin().is_positive() { angle } else { -angle }
-                        };
-                        let factor = {
-                            let bound = motor.duty_factor.acos();
-                            (angle + bound) / (2.0 * bound)
-                        };
+                            let direction = transforms
+                                .global_transform(entity)
+                                .transform_vector(player.movement());
+                            let next = home + direction * step_radius;
+                            {
+                                let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+                                debug_lines.draw_line(home.clone(), next.clone(), color);
+                            }
 
-                        let translation = &limb.stance_position + Vector3::zero().lerp(&delta, factor);
-                        transforms
-                            .get_mut(limb.foot)
-                            .unwrap()
-                            .set_translation(translation.coords);
+                            if time < flight_time {
+                                let translation = next - &stance;
+                                let current = Vector3::zero().lerp(&translation, time / flight_time);
+                                let current = &stance + current;
+
+                                transforms
+                                    .get_mut(limb.foot)
+                                    .unwrap()
+                                    .set_translation(current.coords);
+
+                                State::Flight { stance, time: delta_seconds + time }
+                            } else {
+                                transforms
+                                    .get_mut(limb.foot)
+                                    .unwrap()
+                                    .set_translation(next.coords);
+
+                                State::Stance
+                            }
+                        }
                     }
-
-                    limb.angle += motor.angular_velocity * time.delta_seconds();
                 }
             }
         }

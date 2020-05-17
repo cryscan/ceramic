@@ -12,7 +12,7 @@ use amethyst::{
 use serde::{Deserialize, Serialize};
 
 use crate::system::{
-    animal::{Motor, QuadrupedPrefab, TrackerPrefab},
+    animal::{QuadrupedPrefab, TrackerPrefab},
     binder::Binder,
     kinematics::{ChainPrefab, ConstrainPrefab},
     player::Player,
@@ -34,7 +34,6 @@ pub struct ScenePrefab {
     chain: Option<ChainPrefab>,
     constrain: Option<ConstrainPrefab>,
     tracker: Option<TrackerPrefab>,
-    motor: Option<Motor>,
     quadruped: Option<QuadrupedPrefab>,
     light: Option<LightPrefab>,
     camera: Option<CameraPrefab>,
