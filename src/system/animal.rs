@@ -116,64 +116,19 @@ impl<'a> System<'a> for TrackSystem {
     }
 }
 
-/*
-
-#[derive(CopyGetters, Debug, Default, Copy, Clone, Serialize, Deserialize, PrefabData)]
-#[prefab(Component)]
-#[get_copy = "pub"]
-pub struct Motor {
-    #[serde(skip)]
-    radius: f32,
-    #[serde(skip)]
-    angular_velocity: f32,
-    #[serde(skip)]
-    duty_factor: f32,
-
-    pub max_angular_velocity: f32,
-    pub max_duty_factor: f32,
-    pub step_limit: [f32; 2],
-}
-
-impl Motor {
-    fn is_stance(&self, angle: f32) -> bool {
-        angle.cos() < (PI * self.duty_factor).cos()
-    }
-
-    fn step_length(&self) -> f32 {
-        TAU * self.radius * self.duty_factor
-    }
-
-    /// Determine the parameters given a speed.
-    /// Increase angular velocity first, then radius; duty factor decreases as speed goes up.
-    fn with_speed(&mut self, speed: f32) -> &Self {
-        let min_radius = self.step_limit[0] / self.max_duty_factor;
-        self.radius = min_radius;
-
-        let angular_velocity = speed / min_radius;
-        self.angular_velocity = angular_velocity.min(self.max_angular_velocity);
-
-        if angular_velocity > self.angular_velocity {
-            self.radius = speed / self.angular_velocity;
-        }
-
-        let step_length = (TAU * self.radius * self.max_duty_factor)
-            .min(self.step_limit[1]);
-        self.duty_factor = step_length / (TAU * self.radius);
-
-        self
-    }
-}
-
-impl Component for Motor {
-    type Storage = DenseVecStorage<Self>;
-}
-
- */
-
 #[derive(Debug, Copy, Clone)]
 enum State {
     Stance,
     Flight { stance: Point3<f32>, time: f32 },
+}
+
+#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
+struct Config {
+    max_angular_velocity: f32,
+    max_duty_factor: f32,
+    default_flight_time: f32,
+    step_limit: [f32; 2],
+    flight_factor: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -184,31 +139,25 @@ pub struct Limb {
 
     home: Option<Point3<f32>>,
     length: Option<f32>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Quadruped {
-    limbs: [Limb; 4],
 
     radius: f32,
     angular_velocity: f32,
     duty_factor: f32,
 
-    max_angular_velocity: f32,
-    max_duty_factor: f32,
-    default_flight_time: f32,
-    step_limit: [f32; 2],
+    config: Config,
 }
 
-impl Quadruped {
+impl Limb {
     fn match_speed(&mut self, speed: f32) {
-        let [min_step, max_step] = self.step_limit;
+        let config = &self.config;
 
-        let min_radius = min_step / self.max_duty_factor / TAU;
-        self.angular_velocity = (speed / min_radius).min(self.max_angular_velocity);
+        let [min_step, max_step] = config.step_limit;
+
+        let min_radius = min_step / config.max_duty_factor / TAU;
+        self.angular_velocity = (speed / min_radius).min(config.max_angular_velocity);
         self.radius = if self.angular_velocity > 0.0 { speed / self.angular_velocity } else { min_radius };
 
-        let step_length = (TAU * self.radius * self.max_duty_factor).min(max_step);
+        let step_length = (TAU * self.radius * config.max_duty_factor).min(max_step);
         self.duty_factor = step_length / (TAU * self.radius);
     }
 
@@ -220,9 +169,14 @@ impl Quadruped {
         if self.angular_velocity > 0.0 {
             TAU * (1.0 - self.duty_factor) / self.angular_velocity
         } else {
-            self.default_flight_time
+            self.config.default_flight_time
         }
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Quadruped {
+    limbs: [Limb; 4],
 }
 
 impl Component for Quadruped {
@@ -234,10 +188,8 @@ pub struct QuadrupedPrefab {
     feet: [usize; 4],
     anchors: [usize; 4],
 
-    max_angular_velocity: f32,
-    max_duty_factor: f32,
-    default_flight_time: f32,
-    step_limit: [f32; 2],
+    #[serde(flatten)]
+    config: Config,
 }
 
 impl<'a> PrefabData<'a> for QuadrupedPrefab {
@@ -253,21 +205,16 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 state: State::Stance,
                 home: None,
                 length: None,
+
+                radius: 0.0,
+                angular_velocity: 0.0,
+                duty_factor: 0.0,
+
+                config: self.config.clone(),
             })
             .collect_vec();
         let limbs = vec[..].try_into().unwrap();
-        let component = Quadruped {
-            limbs,
-
-            radius: 0.0,
-            angular_velocity: 0.0,
-            duty_factor: 0.0,
-
-            max_angular_velocity: self.max_angular_velocity,
-            max_duty_factor: self.max_duty_factor,
-            default_flight_time: self.default_flight_time,
-            step_limit: self.step_limit,
-        };
+        let component = Quadruped { limbs };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -295,16 +242,9 @@ impl<'a> System<'a> for LocomotionSystem {
             time,
             mut debug_lines,
         ) = data;
+        let delta_seconds = time.delta_seconds();
 
         for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
-            let velocity = player.movement().scale(player.speed());
-            let speed = velocity.norm();
-            quadruped.match_speed(speed);
-
-            let step_radius = quadruped.step_radius();
-            let flight_time = quadruped.flight_time();
-            let delta_seconds = time.delta_seconds();
-
             for limb in quadruped.limbs.iter_mut() {
                 if limb.home.is_none() {
                     let foot = transforms.global_position(limb.foot);
@@ -322,9 +262,25 @@ impl<'a> System<'a> for LocomotionSystem {
                 if let Some((home, _length)) = limb.home.zip(limb.length) {
                     let home = transforms.global_transform(entity).transform_point(&home);
                     let foot = transforms.global_position(limb.foot);
-                    let radial = &foot - &home;
+                    let anchor = transforms.global_position(limb.anchor);
+                    let delta = &foot - &home;
+
+                    let velocity = {
+                        let root = transforms.global_position(entity);
+                        let radial = &home - root;
+                        let transform = transforms.global_transform(entity);
+                        let angular = transform.transform_vector(&player.rotation().scaled_axis());
+                        let linear = transform.transform_vector(&player.velocity());
+                        &linear + angular.cross(&radial)
+                    };
+                    let speed = velocity.norm();
+                    limb.match_speed(speed);
+
+                    let step_radius = limb.step_radius();
+                    let flight_time = limb.flight_time();
+
                     {
-                        let color = Srgba::new(0.0, 1.0, 0.0, quadruped.duty_factor);
+                        let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
                         debug_lines.draw_rotated_circle(
                             home.clone(),
                             step_radius,
@@ -334,12 +290,12 @@ impl<'a> System<'a> for LocomotionSystem {
                         );
 
                         let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
-                        debug_lines.draw_direction(home.clone(), radial.clone(), color);
+                        debug_lines.draw_direction(home.clone(), delta.clone(), color);
                     }
 
                     limb.state = match &limb.state {
                         State::Stance => {
-                            if radial.norm() > step_radius {
+                            if delta.norm() > step_radius {
                                 let stance = foot;
                                 State::Flight { stance, time: 0.0 }
                             } else {
@@ -350,10 +306,9 @@ impl<'a> System<'a> for LocomotionSystem {
                             let stance = stance.clone();
                             let time = *time;
 
-                            let direction = transforms
-                                .global_transform(entity)
-                                .transform_vector(player.movement());
-                            let next = home + direction * step_radius;
+                            let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
+                            let target = &home + velocity * (flight_time - time);
+                            let next = target + direction * step_radius;
                             {
                                 let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
                                 debug_lines.draw_line(home.clone(), next.clone(), color);
@@ -361,21 +316,34 @@ impl<'a> System<'a> for LocomotionSystem {
 
                             if time < flight_time {
                                 let translation = next - &stance;
-                                let current = Vector3::zero().lerp(&translation, time / flight_time);
-                                let current = &stance + current;
+                                let current = &stance + Vector3::zero().lerp(&translation, time / flight_time);
+                                let target = {
+                                    let step_length = step_radius * 2.0;
+                                    let coefficient = 4.0 * step_length * limb.config.flight_factor / flight_time;
+                                    let lift = coefficient * time * (flight_time - time);
+                                    let direction = (anchor - foot)
+                                        .try_normalize(EPSILON)
+                                        .unwrap_or(Vector3::zero());
+                                    current + direction * lift
+                                };
+                                {
+                                    let color = Srgba::new(1.0, 0.0, 1.0, 1.0);
+                                    debug_lines.draw_line(current.clone(), target.clone(), color);
+                                }
 
+                                let rotation = transforms
+                                    .get(entity)
+                                    .unwrap()
+                                    .rotation()
+                                    .clone();
                                 transforms
                                     .get_mut(limb.foot)
                                     .unwrap()
-                                    .set_translation(current.coords);
+                                    .set_translation(target.coords)
+                                    .set_rotation(rotation);
 
                                 State::Flight { stance, time: delta_seconds + time }
                             } else {
-                                transforms
-                                    .get_mut(limb.foot)
-                                    .unwrap()
-                                    .set_translation(next.coords);
-
                                 State::Stance
                             }
                         }

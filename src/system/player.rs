@@ -3,7 +3,7 @@ use std::f32::EPSILON;
 use amethyst::{
     assets::PrefabData,
     core::{
-        math::Vector3,
+        math::{UnitQuaternion, Vector3},
         timing::Time,
         transform::Transform,
     },
@@ -20,10 +20,21 @@ use serde::{Deserialize, Serialize};
 #[prefab(Component)]
 pub struct Player {
     #[get_copy = "pub"]
-    speed: f32,
+    linear_speed: f32,
+    #[get_copy = "pub"]
+    angular_speed: f32,
     #[serde(skip, default = "Vector3::zero")]
     #[get = "pub"]
-    movement: Vector3<f32>,
+    translation: Vector3<f32>,
+    #[serde(skip, default = "UnitQuaternion::identity")]
+    #[get = "pub"]
+    rotation: UnitQuaternion<f32>,
+}
+
+impl Player {
+    pub fn velocity(&self) -> Vector3<f32> {
+        self.translation.scale(self.linear_speed)
+    }
 }
 
 impl Component for Player {
@@ -44,12 +55,20 @@ impl<'a> System<'a> for PlayerSystem {
     fn run(&mut self, (mut players, mut transforms, input, time): Self::SystemData) {
         for (player, transform) in (&mut players, &mut transforms).join() {
             let movement = Vector3::new(
-                input.axis_value("move_x").unwrap_or(0.0),
+                0.0,
                 0.0,
                 input.axis_value("move_z").unwrap_or(0.0),
             );
-            player.movement = movement.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-            transform.append_translation(time.delta_seconds() * player.speed * &player.movement);
+            player.rotation = UnitQuaternion::from_euler_angles(
+                0.0,
+                input.axis_value("move_x").unwrap_or(0.0),
+                0.0,
+            );
+            player.translation = movement.try_normalize(EPSILON).unwrap_or(Vector3::zero());
+            transform.append_translation(time.delta_seconds() * player.linear_speed * &player.translation);
+            if let Some((axis, angle)) = player.rotation.axis_angle() {
+                transform.append_rotation(axis, angle * time.delta_seconds());
+            }
         }
     }
 }

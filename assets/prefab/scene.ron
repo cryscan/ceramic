@@ -5,19 +5,23 @@ Prefab(
             data: (
                 model: File("model/cat.glb", ()),
                 transform: (),
-                player: (speed: 4),
-                quadruped: (
+                player: (
+                    linear_speed: 4,
+                    angular_speed: 3.142,
+                ),
+                quadruped: {
                     feet: (5, 7, 9, 11),
                     anchors: (13, 14, 15, 16),
                     max_angular_velocity: 12.57,
                     max_duty_factor: 0.9,
                     default_flight_time: 0.2,
-                    step_limit: (0.1, 1.5),
-                ),
+                    step_limit: (0.2, 1.2),
+                    flight_factor: 1.0,
+                },
             ),
         ),
         (
-            parent: 0,
+            // parent: 0,
             data: (
                 transform: (
                     translation: (0.0, 1.0, 0.0),
