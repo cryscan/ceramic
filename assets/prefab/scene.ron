@@ -8,7 +8,7 @@ Prefab(
                 player: (
                     linear_speed: 4,
                     angular_speed: 6.283,
-                    stiffness: 8,
+                    stiffness: 4,
                 ),
                 quadruped: {
                     feet: (5, 7, 9, 11),
@@ -16,9 +16,9 @@ Prefab(
 
                     max_angular_velocity: 12.57,
                     max_duty_factor: 0.8,
-                    step_limit: (0.2, 1.2),
+                    step_limit: (0.4, 1.2),
                     flight_time: 0.4,
-                    flight_factor: 1.0,
+                    flight_factor: 0.5,
                 },
             ),
         ),

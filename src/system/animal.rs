@@ -143,6 +143,7 @@ pub struct Limb {
     radius: f32,
     angular_velocity: f32,
     duty_factor: f32,
+    threshold: f32,
 
     config: Config,
 }
@@ -159,6 +160,8 @@ impl Limb {
 
         let step_length = (TAU * self.radius * config.max_duty_factor).min(max_step);
         self.duty_factor = step_length / (TAU * self.radius);
+
+        self.threshold = TAU * (1.0 - self.config.max_duty_factor) / self.config.flight_time;
     }
 
     fn step_radius(&self) -> f32 {
@@ -166,8 +169,7 @@ impl Limb {
     }
 
     fn flight_time(&self) -> f32 {
-        let threshold = TAU * (1.0 - self.config.max_duty_factor) / self.config.flight_time;
-        if self.angular_velocity > threshold {
+        if self.angular_velocity > self.threshold {
             TAU * (1.0 - self.duty_factor) / self.angular_velocity
         } else {
             self.config.flight_time
@@ -210,6 +212,7 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 radius: 0.0,
                 angular_velocity: 0.0,
                 duty_factor: 0.0,
+                threshold: 0.0,
 
                 config: self.config.clone(),
             })
@@ -308,24 +311,31 @@ impl<'a> System<'a> for LocomotionSystem {
                             let time = *time;
 
                             let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-                            let target = &home + velocity * (flight_time - time);
-                            let next = target + direction * step_radius;
+                            let mut next = home.clone();
+                            if limb.angular_velocity > limb.threshold {
+                                next += velocity * (flight_time - time) + direction * step_radius;
+                            }
+
                             {
                                 let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
                                 debug_lines.draw_line(home.clone(), next.clone(), color);
                             }
 
                             if time < flight_time {
-                                let translation = next - &stance;
-                                let current = &stance + Vector3::zero().lerp(&translation, time / flight_time);
+                                let direction = {
+                                    let delta = anchor - foot;
+                                    delta - direction.scale(direction.dot(&delta))
+                                };
+                                let direction = direction.try_normalize(EPSILON).unwrap_or(Vector3::zero());
+                                let step_length = step_radius * 2.0;
+                                let height = limb.config.flight_factor * step_length;
+                                let center = Point3::from(next.coords.lerp(&stance.coords, 0.5));
+                                let center = center + direction * height;
                                 let current = {
-                                    let step_length = step_radius * 2.0;
-                                    let height = 4.0 * step_length * limb.config.flight_factor / flight_time;
-                                    let height = height * time * (flight_time - time);
-                                    let direction = (anchor - foot)
-                                        .try_normalize(EPSILON)
-                                        .unwrap_or(Vector3::zero());
-                                    current + direction * height
+                                    let factor = time / flight_time;
+                                    let first = stance.coords.lerp(&center.coords, factor);
+                                    let second = center.coords.lerp(&next.coords, factor);
+                                    first.lerp(&second, factor)
                                 };
 
                                 let rotation = transforms
@@ -336,7 +346,7 @@ impl<'a> System<'a> for LocomotionSystem {
                                 transforms
                                     .get_mut(limb.foot)
                                     .unwrap()
-                                    .set_translation(current.coords)
+                                    .set_translation(current)
                                     .set_rotation(rotation);
 
                                 State::Flight { stance, time: delta_seconds + time }
