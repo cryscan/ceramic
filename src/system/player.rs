@@ -70,6 +70,9 @@ impl<'a> System<'a> for PlayerSystem {
             );
 
             let delta_seconds = time.delta_seconds();
+
+            player.linear_speed += input.axis_value("move_y").unwrap_or(0.0) * delta_seconds;
+
             let decay = 1.0 - (-player.stiffness * delta_seconds).exp();
             player.translation += decay * (translation - player.translation.clone());
             player.rotation *= (player.rotation.inverse() * rotation).powf(decay);

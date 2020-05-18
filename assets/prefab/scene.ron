@@ -6,7 +6,7 @@ Prefab(
                 model: File("model/cat.glb", ()),
                 transform: (),
                 player: (
-                    linear_speed: 4,
+                    linear_speed: 1,
                     angular_speed: 12.57,
                     stiffness: 8,
                 ),
@@ -16,7 +16,7 @@ Prefab(
 
                     max_angular_velocity: 12.57,
                     max_duty_factor: 0.8,
-                    step_limit: (0.4, 1.2),
+                    step_limit: (0.8, 1.2),
                     flight_time: 0.4,
                     flight_height: 0.5,
                 },

@@ -13,7 +13,6 @@ use amethyst::{
 };
 use itertools::{Itertools, multizip};
 use num_traits::identities::Zero;
-use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -186,7 +185,6 @@ pub struct Quadruped {
     limbs: [Limb; 4],
     previous: [Complex<f32>; 4],
     signals: [Complex<f32>; 4],
-    phases: [f32; 4],
 }
 
 impl Component for Quadruped {
@@ -225,17 +223,14 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             })
             .collect_vec();
         let limbs = vec[..].try_into().unwrap();
-
-        let mut rng = thread_rng();
         let vec = (0..4)
-            .map(|_| Complex::from_polar(&1.0, &rng.gen_range(0.0, TAU)))
+            .map(|i| Complex::from_polar(&1.0, &(FRAC_PI_2 * i as f32)))
             .collect_vec();
         let signals = vec[..].try_into().unwrap();
         let component = Quadruped {
             limbs,
             signals,
             previous: signals,
-            phases: [PI; 4],
         };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
@@ -325,7 +320,8 @@ impl<'a> System<'a> for LocomotionSystem {
                         State::Stance => {
                             let condition = {
                                 if limb.angular_velocity > limb.threshold {
-                                    signal.im > 0.0 && previous.im < 0.0 && signal.re > 0.0
+                                    delta.norm() > step_radius ||
+                                        signal.im > 0.0 && previous.im < 0.0 && signal.re > 0.0
                                 } else {
                                     delta.norm() > step_radius
                                 }
@@ -390,23 +386,31 @@ impl<'a> System<'a> for LocomotionSystem {
             }
 
             quadruped.previous = quadruped.signals;
-            let connections = [
+
+            const WEIGHTS: [[f32; 4]; 4] = [
                 [0.0, 1.0, 0.0, 1.0],
                 [1.0, 0.0, 1.0, 0.0],
                 [0.0, 1.0, 0.0, 1.0],
                 [1.0, 0.0, 1.0, 0.0],
             ];
-            let phase = |phi: &[f32], i: usize, j: usize| {
-                let (x, y) = if i > j { (j, i) } else { (i, j) };
-                let phi = match (x, y) {
-                    (0, 1) => phi[0],
-                    (1, 2) => phi[1],
-                    (2, 3) => phi[2],
-                    (0, 3) => -phi[3],
-                    _ => 0.0,
-                };
-                if i > j { -phi } else { phi }
-            };
+            const DIAGONAL_PHASES: [[f32; 4]; 4] = [
+                [0.0, PI, 0.0, FRAC_PI_2],
+                [-PI, 0.0, FRAC_PI_2, 0.0],
+                [0.0, -FRAC_PI_2, 0.0, PI],
+                [-FRAC_PI_2, 0.0, -PI, 0.0],
+            ];
+            const TROT_PHASES: [[f32; 4]; 4] = [
+                [0.0, PI, 0.0, PI],
+                [-PI, 0.0, PI, 0.0],
+                [0.0, -PI, 0.0, PI],
+                [-PI, 0.0, -PI, 0.0],
+            ];
+            const GALLOP_PHASES: [[f32; 4]; 4] = [
+                [0.0, FRAC_PI_2, 0.0, 3.0 * FRAC_PI_2],
+                [-FRAC_PI_2, 0.0, 3.0 * FRAC_PI_2, 0.0],
+                [0.0, -3.0 * FRAC_PI_2, 0.0, FRAC_PI_2],
+                [-3.0 * FRAC_PI_2, 0.0, -FRAC_PI_2, 0.0],
+            ];
 
             for (i, (limb, signal)) in quadruped.limbs.iter_mut()
                 .zip(quadruped.signals.iter_mut())
@@ -423,10 +427,22 @@ impl<'a> System<'a> for LocomotionSystem {
                 derivative.re -= omega * signal.im;
                 derivative.im += omega * signal.re;
 
-                for (j, other) in quadruped.previous.iter().enumerate() {
-                    let connection = connections[i][j];
-                    let phi = phase(&quadruped.phases, i, j);
-                    let delta = connection * other * Complex::from_polar(&1.0, &phi);
+                for (j, signal) in quadruped.previous.iter()
+                    .enumerate() {
+                    let weight = WEIGHTS[i][j];
+                    let phi = if duty_factor > 0.5 {
+                        let trot = TROT_PHASES[i][j];
+                        let diagonal = DIAGONAL_PHASES[i][j];
+                        let factor = (duty_factor - 0.5) / 0.5;
+                        trot * factor + diagonal * (1.0 - factor)
+                    } else {
+                        let gallop = GALLOP_PHASES[i][j];
+                        let trot = TROT_PHASES[i][j];
+                        let factor = duty_factor / 0.5;
+                        gallop * factor + trot * (1.0 - factor)
+                    };
+
+                    let delta = weight * signal * Complex::from_polar(&1.0, &phi);
                     derivative += delta;
                 }
 
