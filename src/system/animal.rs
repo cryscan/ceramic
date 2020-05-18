@@ -314,6 +314,11 @@ impl<'a> System<'a> for LocomotionSystem {
 
                         let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
                         debug_lines.draw_direction(home.clone(), delta.clone(), color);
+
+                        let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+                        let direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
+                        let direction = transforms.global_transform(limb.foot).transform_vector(&direction);
+                        debug_lines.draw_direction(home.clone(), direction.clone(), color);
                     }
 
                     limb.state = match &limb.state {
@@ -426,12 +431,6 @@ impl<'a> System<'a> for LocomotionSystem {
                 }
 
                 *signal += derivative.scale(delta_seconds);
-
-                {
-                    let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                    let end = Point3::from([signal.re, signal.im, 0.0]);
-                    debug_lines.draw_line(Point3::origin(), end, color);
-                }
             }
         }
     }
