@@ -11,14 +11,14 @@ Prefab(
                     stiffness: 4,
                 ),
                 quadruped: {
-                    feet: (5, 7, 9, 11),
-                    anchors: (13, 14, 15, 16),
+                    feet: (9, 11, 7, 5),
+                    anchors: (15, 16, 14, 13),
 
                     max_angular_velocity: 12.57,
                     max_duty_factor: 0.8,
                     step_limit: (0.4, 1.2),
                     flight_time: 0.4,
-                    flight_factor: 0.5,
+                    flight_height: 0.5,
                 },
             ),
         ),

@@ -5,7 +5,7 @@ use std::{
 
 use amethyst::{
     assets::PrefabData,
-    core::{math::{Point3, UnitQuaternion, Vector3}, Time, Transform},
+    core::{math::{Complex, Point3, UnitQuaternion, Vector3}, Time, Transform},
     derive::SystemDesc,
     ecs::prelude::*,
     Error,
@@ -128,7 +128,7 @@ struct Config {
     max_duty_factor: f32,
     step_limit: [f32; 2],
     flight_time: f32,
-    flight_factor: f32,
+    flight_height: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -142,8 +142,12 @@ pub struct Limb {
 
     radius: f32,
     angular_velocity: f32,
-    duty_factor: f32,
+
+    /// The minimum angular velocity whose flight time is greater than default.
+    /// If `angular_velocity` is smaller than `threshold`,
+    /// the limb will neither overshoot nor be synchronized.
     threshold: f32,
+    duty_factor: f32,
 
     config: Config,
 }
@@ -160,8 +164,7 @@ impl Limb {
 
         let step_length = (TAU * self.radius * config.max_duty_factor).min(max_step);
         self.duty_factor = step_length / (TAU * self.radius);
-
-        self.threshold = TAU * (1.0 - self.config.max_duty_factor) / self.config.flight_time;
+        self.threshold = TAU * (1.0 - config.max_duty_factor) / config.flight_time;
     }
 
     fn step_radius(&self) -> f32 {
@@ -180,6 +183,8 @@ impl Limb {
 #[derive(Debug, Copy, Clone)]
 pub struct Quadruped {
     limbs: [Limb; 4],
+    signals: [Complex<f32>; 4],
+    phases: [f32; 4],
 }
 
 impl Component for Quadruped {
@@ -211,14 +216,18 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
 
                 radius: 0.0,
                 angular_velocity: 0.0,
-                duty_factor: 0.0,
                 threshold: 0.0,
+                duty_factor: 0.0,
 
                 config: self.config.clone(),
             })
             .collect_vec();
         let limbs = vec[..].try_into().unwrap();
-        let component = Quadruped { limbs };
+        let component = Quadruped {
+            limbs,
+            signals: [Complex::from_polar(&1.0, &FRAC_PI_2); 4],
+            phases: [FRAC_PI_2; 4],
+        };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -328,7 +337,7 @@ impl<'a> System<'a> for LocomotionSystem {
                                 };
                                 let direction = direction.try_normalize(EPSILON).unwrap_or(Vector3::zero());
                                 let step_length = step_radius * 2.0;
-                                let height = limb.config.flight_factor * step_length;
+                                let height = limb.config.flight_height * step_length;
                                 let center = Point3::from(next.coords.lerp(&stance.coords, 0.5));
                                 let center = center + direction * height;
                                 let current = {
@@ -355,6 +364,54 @@ impl<'a> System<'a> for LocomotionSystem {
                             }
                         }
                     }
+                }
+            }
+
+            let connections = [
+                [0.0, 1.0, 0.0, 1.0],
+                [1.0, 0.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0, 1.0],
+                [1.0, 0.0, 1.0, 0.0],
+            ];
+            let phases = {
+                let phi = &quadruped.phases;
+                [
+                    [0.0, phi[0], 0.0, -phi[3]],
+                    [-phi[0], 0.0, phi[1], 0.0],
+                    [0.0, -phi[1], 0.0, phi[2]],
+                    [phi[3], 0.0, -phi[2], 0.0],
+                ]
+            };
+            let signals = quadruped.signals;
+
+            for (i, (limb, signal)) in quadruped.limbs.iter_mut()
+                .zip(quadruped.signals.iter_mut())
+                .enumerate() {
+                let angular_velocity = limb.angular_velocity;
+                let duty_factor = limb.duty_factor;
+                let omega = if signal.im < 0.0 {
+                    angular_velocity / duty_factor / 2.0
+                } else {
+                    angular_velocity / (1.0 - duty_factor) / 2.0
+                };
+
+                let mut derivative = signal.scale(1.0 - signal.norm_sqr()) * PI;
+                derivative.re -= omega * signal.im;
+                derivative.im += omega * signal.re;
+
+                for (j, other) in signals.iter().enumerate() {
+                    let connection = connections[i][j];
+                    let phi = phases[i][j];
+                    let delta = connection * other * Complex::from_polar(&1.0, &phi);
+                    derivative += delta;
+                }
+
+                *signal += derivative.scale(delta_seconds);
+
+                {
+                    let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+                    let end = Point3::from([signal.re, signal.im, 0.0]);
+                    debug_lines.draw_line(Point3::origin(), end, color);
                 }
             }
         }
