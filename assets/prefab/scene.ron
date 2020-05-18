@@ -7,8 +7,8 @@ Prefab(
                 transform: (),
                 player: (
                     linear_speed: 4,
-                    angular_speed: 6.283,
-                    stiffness: 4,
+                    angular_speed: 12.57,
+                    stiffness: 8,
                 ),
                 quadruped: {
                     feet: (9, 11, 7, 5),

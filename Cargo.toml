@@ -12,3 +12,4 @@ amethyst = {version = "0.15.0", features = ["vulkan", "animation", "gltf"]}
 itertools = "0.9.0"
 getset = "0.1.1"
 num-traits = "0.2.11"
+rand = "0.7.3"

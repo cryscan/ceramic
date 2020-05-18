@@ -11,8 +11,9 @@ use amethyst::{
     Error,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
-use itertools::Itertools;
+use itertools::{Itertools, multizip};
 use num_traits::identities::Zero;
+use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -183,6 +184,7 @@ impl Limb {
 #[derive(Debug, Copy, Clone)]
 pub struct Quadruped {
     limbs: [Limb; 4],
+    previous: [Complex<f32>; 4],
     signals: [Complex<f32>; 4],
     phases: [f32; 4],
 }
@@ -223,9 +225,16 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             })
             .collect_vec();
         let limbs = vec[..].try_into().unwrap();
+
+        let mut rng = thread_rng();
+        let vec = (0..4)
+            .map(|_| Complex::from_polar(&1.0, &rng.gen_range(0.0, TAU)))
+            .collect_vec();
+        let signals = vec[..].try_into().unwrap();
         let component = Quadruped {
             limbs,
-            signals: [Complex::from_polar(&1.0, &FRAC_PI_2); 4],
+            signals,
+            previous: signals,
             phases: [PI; 4],
         };
 
@@ -258,8 +267,8 @@ impl<'a> System<'a> for LocomotionSystem {
         let delta_seconds = time.delta_seconds();
 
         for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
-            for (limb, signal) in quadruped.limbs.iter_mut()
-                .zip(quadruped.signals.iter()) {
+            for (limb, signal, previous) in
+            multizip((&mut quadruped.limbs, &quadruped.signals, &quadruped.previous)) {
                 if limb.home.is_none() {
                     let foot = transforms.global_position(limb.foot);
                     let home = transforms.local_transform(entity).transform_point(&foot);
@@ -311,7 +320,7 @@ impl<'a> System<'a> for LocomotionSystem {
                         State::Stance => {
                             let condition = {
                                 if limb.angular_velocity > limb.threshold {
-                                    signal.im.abs() < 0.2 && signal.re > 0.0
+                                    signal.im > 0.0 && previous.im < 0.0 && signal.re > 0.0
                                 } else {
                                     delta.norm() > step_radius
                                 }
@@ -375,22 +384,24 @@ impl<'a> System<'a> for LocomotionSystem {
                 }
             }
 
+            quadruped.previous = quadruped.signals;
             let connections = [
                 [0.0, 1.0, 0.0, 1.0],
                 [1.0, 0.0, 1.0, 0.0],
                 [0.0, 1.0, 0.0, 1.0],
                 [1.0, 0.0, 1.0, 0.0],
             ];
-            let phases = {
-                let phi = &quadruped.phases;
-                [
-                    [0.0, phi[0], 0.0, -phi[3]],
-                    [-phi[0], 0.0, phi[1], 0.0],
-                    [0.0, -phi[1], 0.0, phi[2]],
-                    [phi[3], 0.0, -phi[2], 0.0],
-                ]
+            let phase = |phi: &[f32], i: usize, j: usize| {
+                let (x, y) = if i > j { (j, i) } else { (i, j) };
+                let phi = match (x, y) {
+                    (0, 1) => phi[0],
+                    (1, 2) => phi[1],
+                    (2, 3) => phi[2],
+                    (0, 3) => -phi[3],
+                    _ => 0.0,
+                };
+                if i > j { -phi } else { phi }
             };
-            let signals = quadruped.signals;
 
             for (i, (limb, signal)) in quadruped.limbs.iter_mut()
                 .zip(quadruped.signals.iter_mut())
@@ -407,9 +418,9 @@ impl<'a> System<'a> for LocomotionSystem {
                 derivative.re -= omega * signal.im;
                 derivative.im += omega * signal.re;
 
-                for (j, other) in signals.iter().enumerate() {
+                for (j, other) in quadruped.previous.iter().enumerate() {
                     let connection = connections[i][j];
-                    let phi = phases[i][j];
+                    let phi = phase(&quadruped.phases, i, j);
                     let delta = connection * other * Complex::from_polar(&1.0, &phi);
                     derivative += delta;
                 }
