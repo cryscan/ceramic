@@ -226,7 +226,7 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
         let component = Quadruped {
             limbs,
             signals: [Complex::from_polar(&1.0, &FRAC_PI_2); 4],
-            phases: [FRAC_PI_2; 4],
+            phases: [PI; 4],
         };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
@@ -258,7 +258,8 @@ impl<'a> System<'a> for LocomotionSystem {
         let delta_seconds = time.delta_seconds();
 
         for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
-            for limb in quadruped.limbs.iter_mut() {
+            for (limb, signal) in quadruped.limbs.iter_mut()
+                .zip(quadruped.signals.iter()) {
                 if limb.home.is_none() {
                     let foot = transforms.global_position(limb.foot);
                     let home = transforms.local_transform(entity).transform_point(&foot);
@@ -308,7 +309,14 @@ impl<'a> System<'a> for LocomotionSystem {
 
                     limb.state = match &limb.state {
                         State::Stance => {
-                            if delta.norm() > step_radius {
+                            let condition = {
+                                if limb.angular_velocity > limb.threshold {
+                                    signal.im.abs() < 0.2 && signal.re > 0.0
+                                } else {
+                                    delta.norm() > step_radius
+                                }
+                            };
+                            if condition {
                                 let stance = foot;
                                 State::Flight { stance, time: 0.0 }
                             } else {
