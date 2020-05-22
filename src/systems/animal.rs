@@ -188,8 +188,8 @@ impl Component for Quadruped {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct QuadrupedPrefab {
-    feet: [usize; 4],
-    anchors: [usize; 4],
+    pub feet: [usize; 4],
+    pub anchors: [usize; 4],
 
     #[serde(flatten)]
     config: Config,

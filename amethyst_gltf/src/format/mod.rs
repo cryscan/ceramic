@@ -212,7 +212,7 @@ fn load_extras<'a, T>(
             .expect("Unreachable: `node_map` should contain all nodes present in the scene");
         if let Some(extras) = node.extras() {
             let mut extras: T = serde_json::from_str(&*extras.get())?;
-            extras.load(node_map);
+            extras.load_index(node_map);
             prefab.data_or_default(*entity_index).extras = Some(extras);
         }
     }

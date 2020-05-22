@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc, Load};
 
 use crate::systems::{
-    animal::TrackerPrefab,
+    animal::{QuadrupedPrefab, TrackerPrefab},
     kinematics::{ChainPrefab, ConstrainPrefab},
     player::Player,
 };
@@ -22,6 +22,7 @@ use crate::systems::{
 #[serde(default)]
 pub struct Extras {
     player: Option<Player>,
+    quadruped: Option<QuadrupedPrefab>,
     tracker: Option<TrackerPrefab>,
     chain: Option<ChainPrefab>,
     constrain: Option<ConstrainPrefab>,
@@ -30,9 +31,13 @@ pub struct Extras {
 }
 
 impl Load for Extras {
-    fn load(&mut self, node_map: &HashMap<usize, usize>) {
+    fn load_index(&mut self, node_map: &HashMap<usize, usize>) {
         let entity_index = |ref node_index| *node_map.get(node_index).unwrap();
 
+        if let Some(ref mut quadruped) = self.quadruped {
+            quadruped.anchors.iter_mut().for_each(|target| *target = entity_index(*target));
+            quadruped.feet.iter_mut().for_each(|target| *target = entity_index(*target));
+        }
         if let Some(ref mut tracker) = self.tracker {
             tracker.target = entity_index(tracker.target);
         }
