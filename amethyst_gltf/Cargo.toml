@@ -23,14 +23,13 @@ amethyst_rendy = "0.5.0"
 err-derive = "0.2.3"
 base64 = "0.11"
 fnv = "1"
-gltf = {version = "0.15", features = ["extras", "KHR_lights_punctual"]}
+gltf = { version = "0.15", features = ["extras", "KHR_lights_punctual"] }
 hibitset = { version = "0.6.2", features = ["parallel"] }
 itertools = "0.8"
 log = "0.4.6"
 mikktspace = "0.2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tuple = "0.4.2"
 
 thread_profiler = { version = "0.3", optional = true }
 image = "0.22.2"

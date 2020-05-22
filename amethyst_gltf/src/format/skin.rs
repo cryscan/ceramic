@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-
 use amethyst_animation::{JointPrefab, SkinnablePrefab, SkinPrefab};
-use amethyst_assets::{Prefab, PrefabData};
+use amethyst_assets::Prefab;
 use amethyst_core::math::{convert, Matrix4};
 use amethyst_error::Error;
 use amethyst_rendy::skinning::JointTransformsPrefab;
@@ -12,15 +10,14 @@ use crate::GltfPrefab;
 
 use super::Buffers;
 
-pub fn load_skin<'a, T>(
+pub fn load_skin<'a, T: Default>(
     skin: &gltf::Skin<'_>,
     buffers: &Buffers,
     skin_entity: usize,
     node_map: &HashMap<usize, usize>,
     meshes: Vec<usize>,
     prefab: &mut Prefab<GltfPrefab<T>>,
-) -> Result<(), Error>
-    where T: Default + Serialize + Deserialize<'a> + PrefabData<'a> {
+) -> Result<(), Error> {
     let joints = skin
         .joints()
         .map(|j| {

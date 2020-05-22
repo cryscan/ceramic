@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use amethyst::{
     assets::{PrefabData, ProgressCounter},
     controls::ControlTagPrefab,
@@ -8,7 +10,7 @@ use amethyst::{
 };
 use serde::{Deserialize, Serialize};
 
-use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc};
+use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc, Load};
 
 use crate::systems::{
     animal::TrackerPrefab,
@@ -25,6 +27,30 @@ pub struct Extras {
     constrain: Option<ConstrainPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
+}
+
+impl Load for Extras {
+    fn load(&mut self, node_map: &HashMap<usize, usize>) {
+        let entity_index = |ref node_index| *node_map.get(node_index).unwrap();
+
+        if let Some(ref mut tracker) = self.tracker {
+            tracker.target = entity_index(tracker.target);
+        }
+        if let Some(ref mut chain) = self.chain {
+            chain.target = entity_index(chain.target);
+        }
+        if let Some(ref mut constrain) = self.constrain {
+            match *constrain {
+                ConstrainPrefab::Direction(ref mut direction) => {
+                    direction.target = entity_index(direction.target);
+                }
+                ConstrainPrefab::Pole(ref mut pole) => {
+                    pole.target = entity_index(pole.target);
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 pub type ScenePrefab = GltfPrefab<Extras>;

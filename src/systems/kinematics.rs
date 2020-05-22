@@ -32,8 +32,8 @@ impl Component for Chain {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct ChainPrefab {
-    target: usize,
-    length: usize,
+    pub target: usize,
+    pub length: usize,
 }
 
 impl<'a> PrefabData<'a> for ChainPrefab {
@@ -61,7 +61,7 @@ impl Component for Direction {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DirectionPrefab {
-    target: usize,
+    pub target: usize,
 }
 
 impl<'a> PrefabData<'a> for DirectionPrefab {
@@ -100,7 +100,7 @@ impl Component for Pole {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct PolePrefab {
-    target: usize,
+    pub target: usize,
 }
 
 impl<'a> PrefabData<'a> for PolePrefab {
@@ -169,8 +169,8 @@ impl<'a> System<'a> for KinematicsSystem {
             }
 
             let mut end = Point3::<f32>::origin();
-            let target = transforms.global_position(chain.target);
-            let mut target = transforms.local_transform(entity).transform_point(&target);
+            let ref target = transforms.global_position(chain.target);
+            let mut target = transforms.local_transform(entity).transform_point(target);
 
             // Direction of entity is the rotation of its parent.
             for (&child, &parent) in entities.iter().tuple_windows() {
@@ -198,29 +198,29 @@ impl<'a> System<'a> for KinematicsSystem {
 
                 // Align the joint with pole.
                 if let Some(pole) = poles.get(parent) {
-                    let pole = transforms.global_position(pole.target);
-                    let pole = transforms
+                    let ref pole = transforms.global_position(pole.target);
+                    let ref pole = transforms
                         .local_transform(parent)
-                        .transform_point(&pole)
+                        .transform_point(pole)
                         .coords;
                     let direction = transforms
                         .get(child)
                         .unwrap()
                         .translation();
-                    let axis = end.coords.normalize();
+                    let ref axis = end.coords.normalize();
 
                     // Draw debug line for pole.
                     {
                         let position = transforms.global_position(child);
-                        let direction = transforms.global_transform(parent).transform_vector(&pole);
+                        let direction = transforms.global_transform(parent).transform_vector(pole);
                         let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
                         debug_lines.draw_direction(position, direction, color);
                     }
 
-                    let pole = pole - axis.scale(pole.dot(&axis));
-                    let direction = direction - axis.scale(direction.dot(&axis));
+                    let ref pole = pole - axis.scale(pole.dot(axis));
+                    let ref direction = direction - axis.scale(direction.dot(axis));
 
-                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(&direction, &pole)
+                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(direction, pole)
                         .and_then(|rotation| rotation.axis_angle()) {
                         transforms
                             .get_mut(parent)
@@ -245,7 +245,7 @@ impl<'a> System<'a> for KinematicsSystem {
 
                 // Apply hinge constraint.
                 if let Some(hinge) = hinges.get(parent) {
-                    if let Some(axis) = &hinge.axis {
+                    if let Some(ref axis) = hinge.axis {
                         // Draw debug line for hinge axis.
                         {
                             let position = transforms.global_position(parent);
@@ -254,13 +254,13 @@ impl<'a> System<'a> for KinematicsSystem {
                             debug_lines.draw_direction(position, direction, color);
                         }
 
-                        let parent_axis = transforms
+                        let ref parent_axis = transforms
                             .get(parent)
                             .unwrap()
                             .rotation()
                             .inverse_transform_vector(axis);
 
-                        if let Some((axis, angle)) = UnitQuaternion::rotation_between(axis, &parent_axis)
+                        if let Some((axis, angle)) = UnitQuaternion::rotation_between(axis, parent_axis)
                             .and_then(|rotation| rotation.axis_angle()) {
                             transforms
                                 .get_mut(parent)
@@ -296,28 +296,28 @@ impl<'a> System<'a> for KinematicsSystem {
 
         for (entity, direction, _) in (&*entities, &mut directions, &chains).join() {
             if direction.rotation.is_none() {
-                let transform_vector = |vector| {
-                    let global = transforms
+                let transform_vector = |ref vector| {
+                    let ref global = transforms
                         .global_transform(direction.target)
-                        .transform_vector(&vector);
-                    transforms.local_transform(entity).transform_vector(&global)
+                        .transform_vector(vector);
+                    transforms.local_transform(entity).transform_vector(global)
                 };
-                let dir = transform_vector(Vector3::z());
-                let up = transform_vector(Vector3::y());
-                direction.rotation.replace(UnitQuaternion::face_towards(&dir, &up));
+                let ref dir = transform_vector(Vector3::z());
+                let ref up = transform_vector(Vector3::y());
+                direction.rotation.replace(UnitQuaternion::face_towards(dir, up));
             }
 
-            if let Some(rotation) = &direction.rotation {
+            if let Some(ref rotation) = direction.rotation {
                 let target_rotation = {
-                    let transform_vector = |vector| {
-                        let global = transforms
+                    let transform_vector = |ref vector| {
+                        let ref global = transforms
                             .global_transform(direction.target)
-                            .transform_vector(&vector);
-                        transforms.local_transform(entity).transform_vector(&global)
+                            .transform_vector(vector);
+                        transforms.local_transform(entity).transform_vector(global)
                     };
-                    let dir = transform_vector(Vector3::z());
-                    let up = transform_vector(Vector3::y());
-                    UnitQuaternion::face_towards(&dir, &up)
+                    let ref dir = transform_vector(Vector3::z());
+                    let ref up = transform_vector(Vector3::y());
+                    UnitQuaternion::face_towards(dir, up)
                 };
 
                 let rotation = target_rotation * rotation.inverse();

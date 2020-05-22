@@ -27,6 +27,7 @@ use self::{
     material::load_material,
     mesh::load_mesh,
     skin::load_skin,
+    load::Load,
 };
 
 mod animation;
@@ -34,6 +35,7 @@ mod importer;
 mod material;
 mod mesh;
 mod skin;
+pub(crate) mod load;
 
 /// Gltf scene format, will load a single scene from a Gltf file.
 ///
@@ -47,7 +49,7 @@ mod skin;
 pub struct GltfSceneFormat(pub GltfSceneOptions);
 
 impl<'a, T> Format<Prefab<GltfPrefab<T>>> for GltfSceneFormat
-    where T: Default + Serialize + DeserializeOwned + PrefabData<'a> + 'static {
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> + 'static {
     fn name(&self) -> &'static str {
         "GLTFScene"
     }
@@ -70,7 +72,7 @@ fn load_gltf<'a, T>(
     name: &str,
     options: &GltfSceneOptions,
 ) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Default + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
     debug!("Loading GLTF scene '{}'", name);
     import(source.clone(), name)
         .with_context(|_| error::Error::GltfImporterError)
@@ -86,7 +88,7 @@ fn load_data<'a, T>(
     source: Arc<dyn Source>,
     name: &str,
 ) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Default + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
     let scene_index = get_scene_index(gltf, options)?;
     let mut prefab = Prefab::<GltfPrefab<T>>::new();
     load_scene(
@@ -123,7 +125,7 @@ fn load_scene<'a, T>(
     name: &str,
     prefab: &mut Prefab<GltfPrefab<T>>,
 ) -> Result<(), Error>
-    where T: Default + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
     let scene = gltf
         .scenes()
         .nth(scene_index)
@@ -190,6 +192,30 @@ fn load_scene<'a, T>(
             .animation_set = Some(load_animations(gltf, buffers, &node_map)?);
     }
 
+    // load extras after loading all nodes
+    if options.load_extras {
+        load_extras(gltf, prefab, &node_map)?;
+    }
+
+    Ok(())
+}
+
+fn load_extras<'a, T>(
+    gltf: &Gltf,
+    prefab: &mut Prefab<GltfPrefab<T>>,
+    node_map: &HashMap<usize, usize>,
+) -> Result<(), Error>
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    for (node_index, ref node) in gltf.nodes().enumerate() {
+        let entity_index = node_map
+            .get(&node_index)
+            .expect("Unreachable: `node_map` should contain all nodes present in the scene");
+        if let Some(extras) = node.extras() {
+            let mut extras: T = serde_json::from_str(&*extras.get())?;
+            extras.load(node_map);
+            prefab.data_or_default(*entity_index).extras = Some(extras);
+        }
+    }
     Ok(())
 }
 
@@ -213,7 +239,7 @@ fn load_node<'a, T>(
     parent_bounding_box: &mut GltfNodeExtent,
     material_set: &mut GltfMaterialSet,
 ) -> Result<(), Error>
-    where T: Default + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
     node_map.insert(node.index(), entity_index);
 
     // Load node name.
@@ -298,14 +324,6 @@ fn load_node<'a, T>(
                     }
                 }
             );
-        }
-    }
-
-    // load extra
-    if options.load_extras {
-        if let Some(extras) = node.extras() {
-            let extras = serde_json::from_str(&*extras.get())?;
-            prefab.data_or_default(entity_index).extras = Some(extras);
         }
     }
 

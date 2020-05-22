@@ -1,11 +1,6 @@
 //! A crate for loading GLTF format scenes into Amethyst
 
-#![warn(
-missing_debug_implementations,
-missing_docs,
-rust_2018_idioms,
-rust_2018_compatibility
-)]
+#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms, rust_2018_compatibility)]
 #![warn(clippy::all)]
 #![allow(clippy::new_without_default)]
 
@@ -36,6 +31,7 @@ use amethyst_rendy::{
 };
 
 pub use crate::format::GltfSceneFormat;
+pub use crate::format::load::Load;
 
 mod error;
 mod format;
@@ -80,8 +76,7 @@ pub struct GltfPrefab<T> {
     pub(crate) material_id: Option<usize>,
 }
 
-impl<'a, T> GltfPrefab<T>
-    where T: Serialize + Deserialize<'a> + PrefabData<'a> {
+impl<T> GltfPrefab<T> {
     /// Move the scene so the center of the bounding box is at the given `target` location.
     pub fn move_to(&mut self, target: Point3<f32>) {
         if let Some(ref extent) = self.extent {

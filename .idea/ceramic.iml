@@ -9,7 +9,14 @@
       <sourceFolder url="file://$MODULE_DIR$/ceramic_systems/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ceramic_scene/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/amethyst_gltf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/binder/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/binder_derive/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/amethyst_assets/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/amethyst_assets/tests" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/amethyst_assets/target" />
       <excludeFolder url="file://$MODULE_DIR$/amethyst_gltf/target" />
+      <excludeFolder url="file://$MODULE_DIR$/binder/target" />
+      <excludeFolder url="file://$MODULE_DIR$/binder_derive/target" />
       <excludeFolder url="file://$MODULE_DIR$/ceramic_scene/target" />
       <excludeFolder url="file://$MODULE_DIR$/ceramic_systems/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
