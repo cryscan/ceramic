@@ -1,42 +1,33 @@
 use amethyst::{
-    assets::{AssetPrefab, Handle, Prefab, PrefabData, ProgressCounter},
+    assets::{PrefabData, ProgressCounter},
     controls::ControlTagPrefab,
-    core::{Named, Transform},
     derive::PrefabData,
     ecs::prelude::*,
     Error,
-    gltf::{GltfSceneAsset, GltfSceneFormat},
-    renderer::{camera::CameraPrefab, light::LightPrefab},
     utils::auto_fov::AutoFov,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::system::{
-    animal::{QuadrupedPrefab, TrackerPrefab},
-    binder::Binder,
+use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc};
+
+use crate::systems::{
+    animal::TrackerPrefab,
     kinematics::{ChainPrefab, ConstrainPrefab},
     player::Player,
 };
 
-#[derive(Default)]
-pub struct Scene {
-    pub handle: Option<Handle<Prefab<ScenePrefab>>>,
-}
-
-#[derive(Serialize, Deserialize, Default, PrefabData)]
-#[serde(default, deny_unknown_fields)]
-pub struct ScenePrefab {
-    transform: Option<Transform>,
-    name: Option<Named>,
-    model: Option<AssetPrefab<GltfSceneAsset, GltfSceneFormat>>,
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PrefabData)]
+#[serde(default)]
+pub struct Extras {
     player: Option<Player>,
-    binder: Option<Binder>,
+    tracker: Option<TrackerPrefab>,
     chain: Option<ChainPrefab>,
     constrain: Option<ConstrainPrefab>,
-    tracker: Option<TrackerPrefab>,
-    quadruped: Option<QuadrupedPrefab>,
-    light: Option<LightPrefab>,
-    camera: Option<CameraPrefab>,
     auto_fov: Option<AutoFov>,
     control_tag: Option<ControlTagPrefab>,
 }
+
+pub type ScenePrefab = GltfPrefab<Extras>;
+pub type SceneAsset = GltfSceneAsset<Extras>;
+pub type SceneLoaderSystemDesc = GltfSceneLoaderSystemDesc<Extras>;
+pub type SceneFormat = GltfSceneFormat;

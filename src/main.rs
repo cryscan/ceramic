@@ -2,10 +2,8 @@
 
 use amethyst::{
     animation::{AnimationBundle, VertexSkinningBundle},
-    assets::PrefabLoaderSystemDesc,
     controls::ArcBallControlBundle,
     core::{Transform, TransformBundle},
-    gltf::GltfSceneLoaderSystemDesc,
     input::{InputBundle, StringBindings},
     prelude::*,
     renderer::{
@@ -17,11 +15,10 @@ use amethyst::{
 };
 
 use crate::{
-    scene::ScenePrefab,
+    scene::SceneLoaderSystemDesc,
     state::load::LoadState,
-    system::{
+    systems::{
         animal::{LocomotionSystem, TrackSystem},
-        binder::BinderBundle,
         kinematics::KinematicsSystem,
         player::PlayerSystem,
     },
@@ -29,7 +26,7 @@ use crate::{
 
 mod scene;
 mod state;
-mod system;
+mod systems;
 mod utils;
 
 fn main() -> amethyst::Result<()> {
@@ -60,17 +57,11 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(RenderSkybox::default()),
         )?
         .with_system_desc(
-            PrefabLoaderSystemDesc::<ScenePrefab>::default(),
-            "scene_loader",
+            SceneLoaderSystemDesc::default(),
+            "gltf_loader",
             &[],
         )
-        .with_system_desc(
-            GltfSceneLoaderSystemDesc::default(),
-            "gltf_loader",
-            &["scene_loader"],
-        )
         .with(PlayerSystem::default(), "player", &[])
-        .with_bundle(BinderBundle::new())?
         .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
         .with_bundle(TransformBundle::new().with_dep(&[

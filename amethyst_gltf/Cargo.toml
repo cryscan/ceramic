@@ -1,0 +1,44 @@
+[package]
+name = "amethyst_gltf"
+version = "0.10.0"
+authors = ["Rhuagh <seamonr@gmail.com>", "Amethyst Foundation <contact@amethyst.rs>"]
+edition = "2018"
+description = "GLTF asset loading"
+
+documentation = "https://docs.amethyst.rs/stable/amethyst_gltf/"
+homepage = "https://amethyst.rs/"
+repository = "https://github.com/amethyst/amethyst"
+
+license = "MIT/Apache-2.0"
+
+[badges]
+travis-ci = { repository = "amethyst/amethyst" }
+
+[dependencies]
+amethyst_assets = "0.11.0"
+amethyst_animation = "0.10.0"
+amethyst_core = "0.10.0"
+amethyst_error = "0.5.0"
+amethyst_rendy = "0.5.0"
+err-derive = "0.2.3"
+base64 = "0.11"
+fnv = "1"
+gltf = {version = "0.15", features = ["extras", "KHR_lights_punctual"]}
+hibitset = { version = "0.6.2", features = ["parallel"] }
+itertools = "0.8"
+log = "0.4.6"
+mikktspace = "0.2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tuple = "0.4.2"
+
+thread_profiler = { version = "0.3", optional = true }
+image = "0.22.2"
+derivative = "2.1.1"
+
+[features]
+vulkan = ["amethyst_rendy/vulkan", "amethyst_rendy/vulkan-x11"]
+metal = ["amethyst_rendy/metal"]
+empty = ["amethyst_rendy/empty"]
+
+profiler = [ "thread_profiler/thread_profiler" ]

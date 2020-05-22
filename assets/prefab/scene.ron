@@ -6,8 +6,8 @@ Prefab(
                 model: File("model/cat.glb", ()),
                 transform: (),
                 player: (
-                    linear_speed: 1,
-                    angular_speed: 12.57,
+                    linear_speed: 4,
+                    angular_speed: 1.571,
                     stiffness: 8,
                 ),
                 quadruped: {
@@ -23,7 +23,7 @@ Prefab(
             ),
         ),
         (
-            parent: 0,
+            // parent: 0,
             data: (
                 transform: (
                     translation: (0.0, 1.0, 0.0),
@@ -180,9 +180,9 @@ Prefab(
         (   // 17 head track target
             parent: 2,
             data: (
-                model: File("model/cube.glb", ()),
+                // model: File("model/cube.glb", ()),
                 transform: (
-                    translation: (0.0, 0.0, -10.0),
+                    translation: (0.0, 0.0, -0.0),
                 ),
                 // player: (speed: 4.0),
             ),
