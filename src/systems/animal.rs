@@ -118,12 +118,14 @@ enum State {
 }
 
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
-struct Config {
-    max_angular_velocity: f32,
-    max_duty_factor: f32,
-    step_limit: [f32; 2],
-    flight_time: f32,
-    flight_height: f32,
+#[serde(default)]
+pub struct Config {
+    pub max_angular_velocity: f32,
+    pub max_duty_factor: f32,
+    pub step_limit: [f32; 2],
+    pub flight_time: f32,
+    pub flight_height: f32,
+    pub stance_height: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -138,9 +140,7 @@ pub struct Limb {
     radius: f32,
     angular_velocity: f32,
 
-    /// The minimum angular velocity whose flight time is greater than default.
-    /// If `angular_velocity` is smaller than `threshold`,
-    /// the limb will neither overshoot nor be synchronized.
+    /// The minimum angular velocity whose flight time is greater than `flight_time`.
     threshold: f32,
     duty_factor: f32,
 
@@ -149,14 +149,15 @@ pub struct Limb {
 
 impl Limb {
     fn match_speed(&mut self, speed: f32) {
-        let config = &self.config;
-
+        let ref config = self.config;
         let [min_step, max_step] = config.step_limit;
 
+        // Increase angular speed to be maximum, and then increase radius.
         let min_radius = min_step / config.max_duty_factor / TAU;
         self.angular_velocity = (speed / min_radius).min(config.max_angular_velocity);
         self.radius = if self.angular_velocity > 0.0 { speed / self.angular_velocity } else { min_radius };
 
+        // The step length at this situation to ensure the maximum duty factor and the maximum step length.
         let step_length = (TAU * self.radius * config.max_duty_factor).min(max_step);
         self.duty_factor = step_length / (TAU * self.radius);
         self.threshold = TAU * (1.0 - config.max_duty_factor) / config.flight_time;
@@ -192,7 +193,7 @@ pub struct QuadrupedPrefab {
     pub anchors: [usize; 4],
 
     #[serde(flatten)]
-    config: Config,
+    pub config: Config,
 }
 
 impl<'a> PrefabData<'a> for QuadrupedPrefab {
@@ -267,7 +268,7 @@ impl<'a> System<'a> for LocomotionSystem {
             multizip((&mut quadruped.limbs, &quadruped.signals, &quadruped.previous)) {
                 if limb.home.is_none() {
                     let ref foot = transforms.global_position(limb.foot);
-                    let home = transforms.local_transform(entity).transform_point(foot);
+                    let home = transforms.local_transform(limb.anchor).transform_point(foot);
                     limb.home.replace(home);
                 }
 
@@ -279,9 +280,10 @@ impl<'a> System<'a> for LocomotionSystem {
                 }
 
                 if let Some((ref home, _length)) = limb.home.zip(limb.length) {
-                    let home = transforms.global_transform(entity).transform_point(home);
+                    let home = transforms.global_transform(limb.anchor).transform_point(home);
+
                     let ref foot = transforms.global_position(limb.foot);
-                    let anchor = transforms.global_position(limb.anchor);
+                    let ref anchor = transforms.global_position(limb.anchor);
                     let delta = foot - home;
 
                     let velocity = {
@@ -340,15 +342,12 @@ impl<'a> System<'a> for LocomotionSystem {
                             let time = *time;
 
                             let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-                            let mut next = home.clone();
+                            let mut next = home;
                             if limb.angular_velocity > limb.threshold {
                                 next += velocity * (flight_time - time) + direction * step_radius;
                             }
-
-                            {
-                                let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                                debug_lines.draw_line(home.clone(), next.clone(), color);
-                            }
+                            // Todo: Change this after ray casting works.
+                            next.coords.y = limb.config.stance_height;
 
                             if time < flight_time {
                                 let ref stance = stance.coords;
