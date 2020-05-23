@@ -1,243 +1,21 @@
-use std::{
-    convert::TryInto,
-    f32::{consts::{FRAC_PI_2, PI, TAU}, EPSILON},
-};
+use std::f32::{consts::{FRAC_PI_2, PI}, EPSILON};
 
 use amethyst::{
-    assets::PrefabData,
     core::{math::{Complex, Point3, UnitQuaternion, Vector3}, Time, Transform},
     derive::SystemDesc,
     ecs::prelude::*,
-    Error,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
-use itertools::{Itertools, multizip};
-use num_traits::identities::Zero;
-use serde::{Deserialize, Serialize};
+use itertools::multizip;
+use num_traits::Zero;
 
 use crate::{
-    systems::player::Player,
-    utils::transform::Adaptor,
+    systems::{
+        animal::{Quadruped, State},
+        player::Player,
+    },
+    utils::transform::Helper,
 };
-
-#[derive(Debug, Copy, Clone)]
-pub struct Tracker {
-    target: Entity,
-    limit: Option<f32>,
-    speed: f32,
-    rotation: Option<UnitQuaternion<f32>>,
-}
-
-impl Component for Tracker {
-    type Storage = DenseVecStorage<Self>;
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct TrackerPrefab {
-    pub target: usize,
-    pub limit: Option<f32>,
-    pub speed: f32,
-}
-
-impl<'a> PrefabData<'a> for TrackerPrefab {
-    type SystemData = WriteStorage<'a, Tracker>;
-    type Result = ();
-
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
-        let component = Tracker {
-            target: entities[self.target],
-            limit: self.limit.clone(),
-            speed: self.speed,
-            rotation: None,
-        };
-        data.insert(entity, component).map(|_| ()).map_err(Into::into)
-    }
-}
-
-#[derive(Default, SystemDesc)]
-pub struct TrackSystem;
-
-impl<'a> System<'a> for TrackSystem {
-    type SystemData = (
-        Entities<'a>,
-        WriteStorage<'a, Transform>,
-        WriteStorage<'a, Tracker>,
-        Read<'a, Time>,
-    );
-
-    fn run(&mut self, data: Self::SystemData) {
-        let (
-            entities,
-            mut transforms,
-            mut trackers,
-            time,
-        ) = data;
-
-        for (tracker, transform) in (&mut trackers, &transforms).join() {
-            if tracker.rotation.is_none() {
-                let rotation = transform.rotation();
-                tracker.rotation.replace(rotation.clone());
-            }
-        }
-
-        for (entity, tracker) in (&*entities, &trackers).join() {
-            let target = transforms.global_position(tracker.target);
-            let joint = transforms.global_position(entity);
-            let ref target = target - joint;
-
-            let transform = transforms.local_transform(entity);
-            let ref target = transform.transform_vector(target);
-            let ref up = transform.transform_vector(&Vector3::y());
-
-            // The hack here is that the direction of joints is y axis, not z axis by default.
-            let mut target = UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0)
-                * UnitQuaternion::face_towards(target, up);
-
-            let rotation = tracker.rotation.unwrap_or_else(UnitQuaternion::identity);
-            if let Some((axis, angle)) = (rotation.inverse() * target).axis_angle() {
-                if let Some(limit) = tracker.limit {
-                    let angle = angle.min(limit);
-                    let delta = UnitQuaternion::from_axis_angle(&axis, angle);
-                    target = delta * rotation * rotation;
-                }
-            }
-
-            let current = transforms.get(entity).unwrap().rotation();
-            let interpolation = 1.0 - (-tracker.speed * time.delta_seconds()).exp();
-            if let Some(rotation) = current.try_slerp(&target, interpolation, EPSILON) {
-                transforms.get_mut(entity).unwrap().set_rotation(rotation);
-            }
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-enum State {
-    Stance,
-    Flight { stance: Point3<f32>, time: f32 },
-}
-
-#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct Config {
-    pub max_angular_velocity: f32,
-    pub max_duty_factor: f32,
-    pub step_limit: [f32; 2],
-    pub flight_time: f32,
-    pub flight_height: f32,
-    pub stance_height: f32,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Limb {
-    foot: Entity,
-    anchor: Entity,
-    state: State,
-
-    home: Option<Point3<f32>>,
-    length: Option<f32>,
-
-    radius: f32,
-    angular_velocity: f32,
-
-    /// The minimum angular velocity whose flight time is greater than `flight_time`.
-    threshold: f32,
-    duty_factor: f32,
-
-    config: Config,
-}
-
-impl Limb {
-    fn match_speed(&mut self, speed: f32) {
-        let ref config = self.config;
-        let [min_step, max_step] = config.step_limit;
-
-        // Increase angular speed to be maximum, and then increase radius.
-        let min_radius = min_step / config.max_duty_factor / TAU;
-        self.angular_velocity = (speed / min_radius).min(config.max_angular_velocity);
-        self.radius = if self.angular_velocity > 0.0 { speed / self.angular_velocity } else { min_radius };
-
-        // The step length at this situation to ensure the maximum duty factor and the maximum step length.
-        let step_length = (TAU * self.radius * config.max_duty_factor).min(max_step);
-        self.duty_factor = step_length / (TAU * self.radius);
-        self.threshold = TAU * (1.0 - config.max_duty_factor) / config.flight_time;
-    }
-
-    fn step_radius(&self) -> f32 {
-        PI * self.radius * self.duty_factor
-    }
-
-    fn flight_time(&self) -> f32 {
-        if self.angular_velocity > self.threshold {
-            TAU * (1.0 - self.duty_factor) / self.angular_velocity
-        } else {
-            self.config.flight_time
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Quadruped {
-    limbs: [Limb; 4],
-    previous: [Complex<f32>; 4],
-    signals: [Complex<f32>; 4],
-}
-
-impl Component for Quadruped {
-    type Storage = DenseVecStorage<Self>;
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct QuadrupedPrefab {
-    pub feet: [usize; 4],
-    pub anchors: [usize; 4],
-
-    #[serde(flatten)]
-    pub config: Config,
-}
-
-impl<'a> PrefabData<'a> for QuadrupedPrefab {
-    type SystemData = WriteStorage<'a, Quadruped>;
-    type Result = ();
-
-    fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
-    ) -> Result<Self::Result, Error> {
-        let limbs = self.feet.iter()
-            .zip(self.anchors.iter())
-            .map(|(&foot, &anchor)| Limb {
-                foot: entities[foot],
-                anchor: entities[anchor],
-                state: State::Stance,
-                home: None,
-                length: None,
-
-                radius: 0.0,
-                angular_velocity: 0.0,
-                threshold: 0.0,
-                duty_factor: 0.0,
-
-                config: self.config.clone(),
-            })
-            .collect_vec();
-        let limbs = limbs[..].try_into().unwrap();
-        let signals = (0..4)
-            .map(|i| Complex::from_polar(&1.0, &(FRAC_PI_2 * i as f32)))
-            .collect_vec();
-        let signals = signals[..].try_into().unwrap();
-        let component = Quadruped {
-            limbs,
-            signals,
-            previous: signals,
-        };
-
-        data.insert(entity, component).map(|_| ()).map_err(Into::into)
-    }
-}
 
 #[derive(Default, SystemDesc)]
 pub struct LocomotionSystem;
@@ -272,14 +50,16 @@ impl<'a> System<'a> for LocomotionSystem {
                     limb.home.replace(home);
                 }
 
+                /*
                 if limb.length.is_none() {
                     let foot = transforms.global_position(limb.foot);
                     let anchor = transforms.global_position(limb.anchor);
                     let length = (foot - anchor).norm();
                     limb.length.replace(length);
                 }
+                 */
 
-                if let Some((ref home, _length)) = limb.home.zip(limb.length) {
+                if let Some(ref home) = limb.home {
                     let home = transforms.global_transform(limb.anchor).transform_point(home);
 
                     let ref foot = transforms.global_position(limb.foot);
@@ -324,12 +104,9 @@ impl<'a> System<'a> for LocomotionSystem {
                     limb.state = match &limb.state {
                         State::Stance => {
                             let condition = {
-                                if limb.angular_velocity > limb.threshold {
-                                    delta.norm() > step_radius ||
-                                        signal.im > 0.0 && previous.im < 0.0 && signal.re > 0.0
-                                } else {
-                                    delta.norm() > step_radius
-                                }
+                                let step = delta.norm() > step_radius;
+                                let signal = signal.re > 0.0 && signal.im > 0.0 && previous.im < 0.0;
+                                if limb.angular_velocity > limb.threshold { step || signal } else { step }
                             };
                             if condition {
                                 let stance = foot.clone();

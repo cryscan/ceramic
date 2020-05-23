@@ -5,7 +5,7 @@ use amethyst::{
     controls::ControlTagPrefab,
     derive::PrefabData,
     ecs::prelude::*,
-    Error,
+    error::Error,
     utils::auto_fov::AutoFov,
 };
 use serde::{Deserialize, Serialize};

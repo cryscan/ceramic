@@ -9,7 +9,7 @@ use amethyst::{
     },
     derive::{PrefabData, SystemDesc},
     ecs::prelude::*,
-    Error,
+    error::Error,
     renderer::{
         debug_drawing::DebugLines,
         palette::Srgba,
@@ -18,7 +18,7 @@ use amethyst::{
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::transform::Adaptor;
+use crate::utils::transform::Helper;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
@@ -40,7 +40,13 @@ impl<'a> PrefabData<'a> for ChainPrefab {
     type SystemData = WriteStorage<'a, Chain>;
     type Result = ();
 
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
         let component = Chain {
             length: self.length,
             target: entities[self.target],
@@ -68,7 +74,13 @@ impl<'a> PrefabData<'a> for DirectionPrefab {
     type SystemData = WriteStorage<'a, Direction>;
     type Result = ();
 
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
         let component = Direction {
             target: entities[self.target],
             rotation: None,
@@ -107,7 +119,13 @@ impl<'a> PrefabData<'a> for PolePrefab {
     type SystemData = WriteStorage<'a, Pole>;
     type Result = ();
 
-    fn add_to_entity(&self, entity: Entity, data: &mut Self::SystemData, entities: &[Entity], _: &[Entity]) -> Result<Self::Result, Error> {
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
         let component = Pole { target: entities[self.target] };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

@@ -3,18 +3,18 @@ use amethyst::{
     ecs::prelude::*,
 };
 
-pub trait Adaptor {
+pub trait Helper {
     fn global_transform(&self, entity: Entity) -> &Matrix4<f32>;
     fn global_position(&self, entity: Entity) -> Point3<f32>;
     fn local_transform(&self, entity: Entity) -> Matrix4<f32>;
 }
 
-impl Adaptor for WriteStorage<'_, Transform> {
+impl Helper for WriteStorage<'_, Transform> {
     #[inline]
     fn global_transform(&self, entity: Entity) -> &Matrix4<f32> {
         self
             .get(entity)
-            .expect("Expected to have `Transform`")
+            .expect("Expected `Transform` component")
             .global_matrix()
     }
 
@@ -28,7 +28,7 @@ impl Adaptor for WriteStorage<'_, Transform> {
     fn local_transform(&self, entity: Entity) -> Matrix4<f32> {
         self
             .get(entity)
-            .expect("Expected to have `Transform`")
+            .expect("Expected `Transform` component")
             .global_view_matrix()
     }
 }
