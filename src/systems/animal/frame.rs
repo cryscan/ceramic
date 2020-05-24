@@ -6,6 +6,7 @@ use amethyst::{
     ecs::prelude::*,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
+use easer::functions::{Back, Easing};
 use num_traits::Zero;
 
 use crate::utils::transform::Helper;
@@ -56,7 +57,7 @@ impl<'a> System<'a> for FrameSystem {
                             let speed = limb.angular_velocity * limb.radius;
                             let height = limb.config.bounce_factor * flight_time * speed;
                             let current = {
-                                let factor = time / flight_time;
+                                let factor = Back::ease_in_out(time, 0.0, 1.0, flight_time);
                                 let ref center = Vector3::y() * height;
                                 let ref origin = Vector3::zero();
                                 let ref first = origin.lerp(center, factor);
