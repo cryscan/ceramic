@@ -1,6 +1,6 @@
 use std::{
     convert::TryInto,
-    f32::consts::{FRAC_PI_2, PI, TAU},
+    f32::consts::{FRAC_PI_4, PI, TAU},
 };
 
 use amethyst::{
@@ -9,9 +9,10 @@ use amethyst::{
     ecs::prelude::*,
     error::Error,
 };
-use itertools::Itertools;
+use itertools::{Itertools, multizip};
 use serde::{Deserialize, Serialize};
 
+pub use frame::FrameSystem;
 pub use locomotion::LocomotionSystem;
 pub use track::{Tracker, TrackerPrefab, TrackSystem};
 
@@ -32,18 +33,22 @@ pub struct Config {
     pub max_duty_factor: f32,
     pub step_limit: [f32; 2],
     pub flight_time: f32,
-    pub flight_height: f32,
+    pub flight_factor: f32,
     pub stance_height: f32,
+    pub bounce_factor: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Limb {
     foot: Entity,
     anchor: Entity,
+    pivot: Entity,
     state: State,
 
+    /// The home position of foot related to pivot.
     home: Option<Point3<f32>>,
-    length: Option<f32>,
+    /// The original position of the anchor related to entity.
+    origin: Option<Point3<f32>>,
 
     radius: f32,
     angular_velocity: f32,
@@ -53,12 +58,15 @@ pub struct Limb {
     duty_factor: f32,
 
     config: Config,
+
+    signal: Complex<f32>,
+    previous: Complex<f32>,
 }
 
 impl Limb {
     fn match_speed(&mut self, speed: f32) {
         let ref config = self.config;
-        let [min_step, max_step] = config.step_limit;
+        let [min_step, max_step] = self.config.step_limit;
 
         // Increase angular speed to be maximum, and then increase radius.
         let min_radius = min_step / config.max_duty_factor / TAU;
@@ -87,8 +95,7 @@ impl Limb {
 #[derive(Debug, Copy, Clone)]
 pub struct Quadruped {
     limbs: [Limb; 4],
-    previous: [Complex<f32>; 4],
-    signals: [Complex<f32>; 4],
+    root: Entity,
 }
 
 impl Component for Quadruped {
@@ -99,6 +106,8 @@ impl Component for Quadruped {
 pub struct QuadrupedPrefab {
     pub feet: [usize; 4],
     pub anchors: [usize; 4],
+    pub pivots: [usize; 4],
+    pub root: usize,
 
     #[serde(flatten)]
     pub config: Config,
@@ -115,14 +124,21 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let limbs = self.feet.iter()
-            .zip(self.anchors.iter())
-            .map(|(&foot, &anchor)| Limb {
+        let signals = (0..self.feet.len())
+            .map(|i| {
+                let ref radius = 1.0;
+                let ref angle = (i as f32) * FRAC_PI_4;
+                Complex::from_polar(radius, angle)
+            })
+            .collect_vec();
+        let limbs = multizip((&self.feet, &self.anchors, &self.pivots, &signals))
+            .map(|(&foot, &anchor, &pivot, &signal)| Limb {
                 foot: entities[foot],
                 anchor: entities[anchor],
+                pivot: entities[pivot],
                 state: State::Stance,
                 home: None,
-                length: None,
+                origin: None,
 
                 radius: 0.0,
                 angular_velocity: 0.0,
@@ -130,18 +146,15 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 duty_factor: 0.0,
 
                 config: self.config.clone(),
+
+                signal,
+                previous: signal,
             })
-            .collect_vec();
-        let limbs = limbs[..].try_into().unwrap();
-        let signals = (0..4)
-            .map(|i| Complex::from_polar(&1.0, &(FRAC_PI_2 * i as f32)))
-            .collect_vec();
-        let signals = signals[..].try_into().unwrap();
-        let component = Quadruped {
-            limbs,
-            signals,
-            previous: signals,
-        };
+            .collect_vec()
+            .as_slice()
+            .try_into()
+            .unwrap();
+        let component = Quadruped { limbs, root: entities[self.root] };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

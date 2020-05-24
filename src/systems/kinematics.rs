@@ -186,130 +186,7 @@ impl<'a> System<'a> for KinematicsSystem {
                 debug_lines.draw_line(start, end, color);
             }
 
-            let mut end = Point3::<f32>::origin();
-            let ref target = transforms.global_position(chain.target);
-            let mut target = transforms.local_transform(entity).transform_point(target);
-
-            // Direction of entity is the rotation of its parent.
-            for (&child, &parent) in entities.iter().tuple_windows() {
-                // Bring end and target to entity's coordinate.
-                {
-                    let transform_point = |point| transforms
-                        .get(child)
-                        .unwrap()
-                        .matrix()
-                        .transform_point(&point);
-                    end = transform_point(end);
-                    target = transform_point(target);
-                }
-
-                // Align the end with the target.
-                if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
-                    .and_then(|rotation| rotation.axis_angle()) {
-                    transforms
-                        .get_mut(parent)
-                        .unwrap()
-                        .append_rotation(axis, angle);
-                    target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                        .transform_point(&target);
-                }
-
-                // Align the joint with pole.
-                if let Some(pole) = poles.get(parent) {
-                    let ref pole = transforms.global_position(pole.target);
-                    let ref pole = transforms
-                        .local_transform(parent)
-                        .transform_point(pole)
-                        .coords;
-                    let direction = transforms
-                        .get(child)
-                        .unwrap()
-                        .translation();
-                    let ref axis = end.coords.normalize();
-
-                    // Draw debug line for pole.
-                    {
-                        let position = transforms.global_position(child);
-                        let direction = transforms.global_transform(parent).transform_vector(pole);
-                        let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
-                        debug_lines.draw_direction(position, direction, color);
-                    }
-
-                    let ref pole = pole - axis.scale(pole.dot(axis));
-                    let ref direction = direction - axis.scale(direction.dot(axis));
-
-                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(direction, pole)
-                        .and_then(|rotation| rotation.axis_angle()) {
-                        transforms
-                            .get_mut(parent)
-                            .unwrap()
-                            .append_rotation(axis, angle);
-                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                            .transform_point(&target);
-                    }
-                }
-
-                // Auto-derive hinge axis.
-                if let Some(hinge) = hinges.get_mut(parent) {
-                    if hinge.axis.is_none() {
-                        hinge.axis = transforms
-                            .get(parent)
-                            .unwrap()
-                            .rotation()
-                            .axis()
-                            .map(|axis| axis.into_inner());
-                    }
-                }
-
-                // Apply hinge constraint.
-                if let Some(hinge) = hinges.get(parent) {
-                    if let Some(ref axis) = hinge.axis {
-                        // Draw debug line for hinge axis.
-                        {
-                            let position = transforms.global_position(parent);
-                            let direction = transforms.global_transform(parent).transform_vector(axis);
-                            let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
-                            debug_lines.draw_direction(position, direction, color);
-                        }
-
-                        let ref parent_axis = transforms
-                            .get(parent)
-                            .unwrap()
-                            .rotation()
-                            .inverse_transform_vector(axis);
-
-                        if let Some((axis, angle)) = UnitQuaternion::rotation_between(axis, parent_axis)
-                            .and_then(|rotation| rotation.axis_angle()) {
-                            transforms
-                                .get_mut(parent)
-                                .unwrap()
-                                .append_rotation(axis, angle);
-                            target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                                .transform_point(&target);
-                        }
-
-                        // Apply hinge limit.
-                        if let Some([min, max]) = hinge.limit {
-                            let transform = transforms
-                                .get_mut(parent)
-                                .unwrap();
-                            let hinge_axis = axis;
-                            if let Some((axis, angle)) = transform
-                                .rotation()
-                                .axis_angle() {
-                                let (axis, angle) = {
-                                    if axis.dot(hinge_axis) < 0.0 { (axis.neg(), angle.neg()) } else { (axis, angle) }
-                                };
-                                let angle = angle.min(max).max(min) - angle;
-
-                                transform.append_rotation(axis, angle);
-                                target = UnitQuaternion::from_axis_angle(&axis, -angle)
-                                    .transform_point(&target);
-                            }
-                        }
-                    }
-                }
-            }
+            Self::solve(entity, &mut transforms, &mut hinges, &poles, &mut debug_lines, &entities, &chain);
         }
 
         for (entity, direction, _) in (&*entities, &mut directions, &chains).join() {
@@ -344,6 +221,143 @@ impl<'a> System<'a> for KinematicsSystem {
                         .get_mut(entity)
                         .unwrap()
                         .append_rotation(axis, angle);
+                }
+            }
+        }
+    }
+}
+
+impl KinematicsSystem {
+    fn solve(
+        entity: Entity,
+        transforms: &mut WriteStorage<'_, Transform>,
+        hinges: &mut WriteStorage<'_, Hinge>,
+        poles: &ReadStorage<'_, Pole>,
+        debug_lines: &mut Write<'_, DebugLines>,
+        entities: &Vec<Entity>,
+        chain: &Chain,
+    ) {
+        let mut end = Point3::<f32>::origin();
+        let ref target = transforms.global_position(chain.target);
+        let mut target = transforms.local_transform(entity).transform_point(target);
+
+        // Direction of entity is the rotation of its parent.
+        for (&child, &parent) in entities.iter().tuple_windows() {
+            // Bring end and target to entity's coordinate.
+            {
+                let transform_point = |ref point| transforms
+                    .get(child)
+                    .unwrap()
+                    .matrix()
+                    .transform_point(point);
+                end = transform_point(end);
+                target = transform_point(target);
+            }
+
+            // Align the end with the target.
+            if let Some((axis, angle)) = UnitQuaternion::rotation_between(&end.coords, &target.coords)
+                .and_then(|rotation| rotation.axis_angle()) {
+                transforms
+                    .get_mut(parent)
+                    .unwrap()
+                    .append_rotation(axis, angle);
+                target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                    .transform_point(&target);
+            }
+
+            // Align the joint with pole.
+            if let Some(pole) = poles.get(parent) {
+                let ref pole = transforms.global_position(pole.target);
+                let ref pole = transforms
+                    .local_transform(parent)
+                    .transform_point(pole)
+                    .coords;
+                let direction = transforms
+                    .get(child)
+                    .unwrap()
+                    .translation();
+                let ref axis = end.coords.normalize();
+
+                // Draw debug line for pole.
+                {
+                    let position = transforms.global_position(child);
+                    let direction = transforms.global_transform(parent).transform_vector(pole);
+                    let color = Srgba::new(0.0, 1.0, 1.0, 1.0);
+                    debug_lines.draw_direction(position, direction, color);
+                }
+
+                let ref pole = pole - axis.scale(pole.dot(axis));
+                let ref direction = direction - axis.scale(direction.dot(axis));
+
+                if let Some((axis, angle)) = UnitQuaternion::rotation_between(direction, pole)
+                    .and_then(|rotation| rotation.axis_angle()) {
+                    transforms
+                        .get_mut(parent)
+                        .unwrap()
+                        .append_rotation(axis, angle);
+                    target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                        .transform_point(&target);
+                }
+            }
+
+            // Auto-derive hinge axis.
+            if let Some(hinge) = hinges.get_mut(parent) {
+                if hinge.axis.is_none() {
+                    hinge.axis = transforms
+                        .get(parent)
+                        .unwrap()
+                        .rotation()
+                        .axis()
+                        .map(|axis| axis.into_inner());
+                }
+            }
+
+            // Apply hinge constraint.
+            if let Some(hinge) = hinges.get(parent) {
+                if let Some(ref axis) = hinge.axis {
+                    // Draw debug line for hinge axis.
+                    {
+                        let position = transforms.global_position(parent);
+                        let direction = transforms.global_transform(parent).transform_vector(axis);
+                        let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
+                        debug_lines.draw_direction(position, direction, color);
+                    }
+
+                    let ref parent_axis = transforms
+                        .get(parent)
+                        .unwrap()
+                        .rotation()
+                        .inverse_transform_vector(axis);
+
+                    if let Some((axis, angle)) = UnitQuaternion::rotation_between(axis, parent_axis)
+                        .and_then(|rotation| rotation.axis_angle()) {
+                        transforms
+                            .get_mut(parent)
+                            .unwrap()
+                            .append_rotation(axis, angle);
+                        target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                            .transform_point(&target);
+                    }
+
+                    // Apply hinge limit.
+                    if let Some([min, max]) = hinge.limit {
+                        let transform = transforms
+                            .get_mut(parent)
+                            .unwrap();
+                        let hinge_axis = axis;
+                        if let Some((axis, angle)) = transform
+                            .rotation()
+                            .axis_angle() {
+                            let (axis, angle) = {
+                                if axis.dot(hinge_axis) < 0.0 { (axis.neg(), angle.neg()) } else { (axis, angle) }
+                            };
+                            let angle = angle.min(max).max(min) - angle;
+
+                            transform.append_rotation(axis, angle);
+                            target = UnitQuaternion::from_axis_angle(&axis, -angle)
+                                .transform_point(&target);
+                        }
+                    }
                 }
             }
         }

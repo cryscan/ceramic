@@ -25,6 +25,9 @@ pub struct Player {
     angular_speed: f32,
     stiffness: f32,
 
+    speed_limit: [f32; 2],
+    acceleration: f32,
+
     #[serde(skip, default = "Vector3::zero")]
     #[get = "pub"]
     translation: Vector3<f32>,
@@ -70,8 +73,9 @@ impl<'a> System<'a> for PlayerSystem {
             );
 
             let delta_seconds = time.delta_seconds();
-
-            player.linear_speed += input.axis_value("move_y").unwrap_or(0.0) * delta_seconds;
+            let [min, max] = player.speed_limit;
+            player.linear_speed += input.axis_value("move_y").unwrap_or(0.0) * delta_seconds * player.acceleration;
+            player.linear_speed = player.linear_speed.min(max).max(min);
 
             let decay = 1.0 - (-player.stiffness * delta_seconds).exp();
             player.translation += decay * (translation - player.translation.clone());

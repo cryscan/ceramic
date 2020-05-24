@@ -18,7 +18,7 @@ use crate::{
     scene::SceneLoaderSystemDesc,
     state::load::LoadState,
     systems::{
-        animal::{LocomotionSystem, TrackSystem},
+        animal::{FrameSystem, LocomotionSystem, TrackSystem},
         kinematics::KinematicsSystem,
         player::PlayerSystem,
     },
@@ -76,8 +76,10 @@ fn main() -> amethyst::Result<()> {
         ]))?
         .with(KinematicsSystem::default(), "kinematics", &["transform_system"])
         .with(TrackSystem::default(), "track", &["transform_system"])
+        .with(FrameSystem::default(), "frame", &["transform_system"])
         .with(LocomotionSystem::default(), "locomotion", &[
             "player",
+            "frame",
             "transform_system"
         ])
         .with_bundle(input_bundle)?

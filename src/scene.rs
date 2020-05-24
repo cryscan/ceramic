@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use amethyst::{
     assets::{PrefabData, ProgressCounter},
@@ -32,25 +32,27 @@ pub struct Extras {
 
 impl Load for Extras {
     fn load_index(&mut self, node_map: &HashMap<usize, usize>) {
-        let entity_index = |ref node_index| *node_map.get(node_index).unwrap();
+        let index_mut = |node: &mut usize| *node = *node_map.get(node).unwrap();
 
         if let Some(ref mut quadruped) = self.quadruped {
-            quadruped.anchors.iter_mut().for_each(|target| *target = entity_index(*target));
-            quadruped.feet.iter_mut().for_each(|target| *target = entity_index(*target));
+            quadruped.anchors.iter_mut().for_each(index_mut);
+            quadruped.pivots.iter_mut().for_each(index_mut);
+            quadruped.feet.iter_mut().for_each(index_mut);
+            index_mut(&mut quadruped.root);
         }
         if let Some(ref mut tracker) = self.tracker {
-            tracker.target = entity_index(tracker.target);
+            index_mut(&mut tracker.target);
         }
         if let Some(ref mut chain) = self.chain {
-            chain.target = entity_index(chain.target);
+            index_mut(&mut chain.target);
         }
         if let Some(ref mut constrain) = self.constrain {
             match *constrain {
                 ConstrainPrefab::Direction(ref mut direction) => {
-                    direction.target = entity_index(direction.target);
+                    index_mut(&mut direction.target);
                 }
                 ConstrainPrefab::Pole(ref mut pole) => {
-                    pole.target = entity_index(pole.target);
+                    index_mut(&mut pole.target);
                 }
                 _ => {}
             }

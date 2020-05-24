@@ -1,21 +1,21 @@
 use std::f32::{consts::{FRAC_PI_2, PI}, EPSILON};
 
 use amethyst::{
-    core::{math::{Complex, Point3, UnitQuaternion, Vector3}, Time, Transform},
+    core::{math::{Complex, UnitQuaternion, Vector3}, Time, Transform},
     derive::SystemDesc,
     ecs::prelude::*,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
-use itertools::multizip;
+use interpolation::Lerp;
+use itertools::Itertools;
 use num_traits::Zero;
 
 use crate::{
-    systems::{
-        animal::{Quadruped, State},
-        player::Player,
-    },
+    systems::player::Player,
     utils::transform::Helper,
 };
+
+use super::{Quadruped, State};
 
 #[derive(Default, SystemDesc)]
 pub struct LocomotionSystem;
@@ -42,28 +42,17 @@ impl<'a> System<'a> for LocomotionSystem {
         let delta_seconds = time.delta_seconds();
 
         for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
-            for (limb, signal, previous) in
-            multizip((&mut quadruped.limbs, &quadruped.signals, &quadruped.previous)) {
+            for limb in quadruped.limbs.iter_mut() {
                 if limb.home.is_none() {
-                    let ref foot = transforms.global_position(limb.foot);
-                    let home = transforms.local_transform(limb.anchor).transform_point(foot);
+                    let ref pivot = transforms.global_position(limb.foot);
+                    let home = transforms.local_transform(limb.pivot).transform_point(pivot);
                     limb.home.replace(home);
                 }
 
-                /*
-                if limb.length.is_none() {
-                    let foot = transforms.global_position(limb.foot);
-                    let anchor = transforms.global_position(limb.anchor);
-                    let length = (foot - anchor).norm();
-                    limb.length.replace(length);
-                }
-                 */
-
                 if let Some(ref home) = limb.home {
-                    let home = transforms.global_transform(limb.anchor).transform_point(home);
-
+                    let ref home = transforms.global_transform(limb.pivot).transform_point(home);
                     let ref foot = transforms.global_position(limb.foot);
-                    let ref anchor = transforms.global_position(limb.anchor);
+                    let ref pivot = transforms.global_position(limb.pivot);
                     let delta = foot - home;
 
                     let velocity = {
@@ -82,6 +71,9 @@ impl<'a> System<'a> for LocomotionSystem {
                     let step_radius = limb.step_radius();
                     let flight_time = limb.flight_time();
 
+                    let ref signal = limb.signal;
+                    let ref previous = limb.previous;
+
                     {
                         let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
                         debug_lines.draw_rotated_circle(
@@ -93,7 +85,7 @@ impl<'a> System<'a> for LocomotionSystem {
                         );
 
                         let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
-                        debug_lines.draw_direction(home.clone(), delta.clone(), color);
+                        debug_lines.draw_sphere(foot.clone(), 0.2, 4, 4, color);
 
                         let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
                         let ref direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
@@ -105,8 +97,8 @@ impl<'a> System<'a> for LocomotionSystem {
                         State::Stance => {
                             let condition = {
                                 let step = delta.norm() > step_radius;
-                                let signal = signal.re > 0.0 && signal.im > 0.0 && previous.im < 0.0;
-                                if limb.angular_velocity > limb.threshold { step || signal } else { step }
+                                let signal = signal.im > 0.0 && previous.im < 0.0;
+                                if limb.angular_velocity > limb.threshold { signal } else { step }
                             };
                             if condition {
                                 let stance = foot.clone();
@@ -119,7 +111,7 @@ impl<'a> System<'a> for LocomotionSystem {
                             let time = *time;
 
                             let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-                            let mut next = home;
+                            let mut next = home.clone();
                             if limb.angular_velocity > limb.threshold {
                                 next += velocity * (flight_time - time) + direction * step_radius;
                             }
@@ -128,21 +120,22 @@ impl<'a> System<'a> for LocomotionSystem {
 
                             if time < flight_time {
                                 let ref stance = stance.coords;
-                                let direction = {
-                                    let ref delta = anchor - foot;
-                                    delta - direction.scale(direction.dot(delta))
-                                }
-                                    .try_normalize(EPSILON)
-                                    .unwrap_or(Vector3::zero());
-                                let step_length = step_radius * 2.0;
-                                let height = limb.config.flight_height * step_length;
-                                let center = Point3::from(next.coords.lerp(stance, 0.5)) + direction * height;
-                                let current = {
-                                    let ref center = center.coords;
-                                    let ref next = next.coords;
+                                let ref next = next.coords;
 
-                                    let factor = time / flight_time;
-                                    let first = stance.lerp(center, factor);
+                                let direction = {
+                                    let ref delta = pivot - foot;
+                                    let direction = delta - direction.scale(direction.dot(delta));
+                                    direction.try_normalize(EPSILON).unwrap_or(Vector3::zero())
+                                };
+                                let step_length = step_radius * 2.0;
+                                let height = limb.config.flight_factor * step_length;
+
+                                let factor = time / flight_time;
+                                // let factor = Back::ease_in(time, 0.0, 1.0, flight_time);
+
+                                let translation = {
+                                    let ref center = next.lerp(stance, 0.5) + direction * height;
+                                    let ref first = stance.lerp(center, factor);
                                     let ref second = center.lerp(next, factor);
                                     first.lerp(second, factor)
                                 };
@@ -152,11 +145,21 @@ impl<'a> System<'a> for LocomotionSystem {
                                     .unwrap()
                                     .rotation()
                                     .clone();
+
+                                let angle = {
+                                    let ref factor = factor;
+                                    let ref center = FRAC_PI_2 * step_length / limb.config.step_limit[1];
+                                    let ref first = 0.0.lerp(center, factor);
+                                    let ref second = center.lerp(&0.0, factor);
+                                    first.lerp(second, factor)
+                                };
+
                                 transforms
                                     .get_mut(limb.foot)
                                     .unwrap()
-                                    .set_translation(current)
-                                    .set_rotation(rotation);
+                                    .set_translation(translation)
+                                    .set_rotation(rotation)
+                                    .append_rotation_x_axis(angle);
 
                                 State::Flight { stance: stance.xyz().into(), time: delta_seconds + time }
                             } else {
@@ -166,8 +169,6 @@ impl<'a> System<'a> for LocomotionSystem {
                     }
                 }
             }
-
-            quadruped.previous = quadruped.signals;
 
             const WEIGHTS: [[f32; 4]; 4] = [
                 [0.0, 1.0, 0.0, 1.0],
@@ -194,9 +195,13 @@ impl<'a> System<'a> for LocomotionSystem {
                 [-3.0 * FRAC_PI_2, 0.0, -FRAC_PI_2, 0.0],
             ];
 
-            for (i, (limb, signal)) in quadruped.limbs.iter_mut()
-                .zip(quadruped.signals.iter_mut())
-                .enumerate() {
+            let previous = quadruped.limbs.iter()
+                .map(|limb| limb.signal)
+                .collect_vec();
+            for (i, limb) in quadruped.limbs.iter_mut().enumerate() {
+                let ref mut signal = limb.signal;
+                limb.previous = *signal;
+
                 let angular_velocity = limb.angular_velocity;
                 let duty_factor = limb.duty_factor;
                 let omega = if signal.im < 0.0 {
@@ -209,19 +214,18 @@ impl<'a> System<'a> for LocomotionSystem {
                 derivative.re -= omega * signal.im;
                 derivative.im += omega * signal.re;
 
-                for (j, signal) in quadruped.previous.iter()
-                    .enumerate() {
+                for (j, signal) in previous.iter().enumerate() {
                     let weight = WEIGHTS[i][j];
                     let ref phi = if duty_factor > 0.5 {
                         let trot = TROT_PHASES[i][j];
-                        let diagonal = DIAGONAL_PHASES[i][j];
-                        let factor = (duty_factor - 0.5) / 0.5;
-                        trot * factor + diagonal * (1.0 - factor)
+                        let ref diagonal = DIAGONAL_PHASES[i][j];
+                        let ref factor = (duty_factor - 0.5) / 0.5;
+                        trot.lerp(diagonal, factor)
                     } else {
                         let gallop = GALLOP_PHASES[i][j];
-                        let trot = TROT_PHASES[i][j];
-                        let factor = duty_factor / 0.5;
-                        gallop * factor + trot * (1.0 - factor)
+                        let ref trot = TROT_PHASES[i][j];
+                        let ref factor = duty_factor / 0.5;
+                        gallop.lerp(trot, factor)
                     };
 
                     let delta = weight * signal * Complex::from_polar(&1.0, phi);
