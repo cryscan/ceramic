@@ -1,14 +1,14 @@
 use std::f32::EPSILON;
 
 use amethyst::{
-    core::{math::{Matrix1x4, Matrix3x4, UnitQuaternion, Vector3}, Transform},
+    core::{math::Vector3, Transform},
     derive::SystemDesc,
     ecs::prelude::*,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
 use num_traits::Zero;
 
-use crate::utils::transform::Helper;
+use crate::utils::{match_shape, transform::Helper};
 
 use super::{Quadruped, State};
 
@@ -76,17 +76,7 @@ impl<'a> System<'a> for FrameSystem {
                 }
             }
 
-            let anchors = Matrix3x4::from_vec(anchors);
-            let origins = Matrix3x4::from_vec(origins);
-            let anchors_mean = anchors.column_mean();
-            let origins_mean = origins.column_mean();
-            let translation = anchors_mean - origins_mean;
-
-            let anchors = anchors - anchors_mean * Matrix1x4::repeat(1.0);
-            let origins = origins - origins_mean * Matrix1x4::repeat(1.0);
-            let ref covariance = origins * anchors.transpose();
-            let rotation = UnitQuaternion::from_matrix_eps(covariance, EPSILON, 10, UnitQuaternion::identity());
-
+            let (translation, rotation) = match_shape(origins, anchors, EPSILON, 10);
             transforms
                 .get_mut(quadruped.root)
                 .unwrap()
