@@ -763,6 +763,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cocoa"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f29f7768b2d1be17b96158e3285951d366b40211320fb30826a76cb7a0da6400"
+dependencies = [
+ "bitflags",
+ "block",
+ "core-foundation 0.6.4",
+ "core-graphics 0.17.3",
+ "foreign-types",
+ "libc",
+ "objc",
+]
+
+[[package]]
 name = "color_quant"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -790,6 +805,12 @@ name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+
+[[package]]
+name = "copyless"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ff9c56c9fb2a49c05ef0e431485a22400af20d33226dc0764d891d09e724127"
 
 [[package]]
 name = "core-foundation"
@@ -1406,6 +1427,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "gfx-backend-empty"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdf40d1cd04f92f8555db32dd9fb5bb13d17ae4624318b73604b4186b1d66f0a"
+dependencies = [
+ "gfx-hal",
+ "raw-window-handle 0.1.2",
+ "winit",
+]
+
+[[package]]
+name = "gfx-backend-metal"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "979d807dcd10f193d874317eb4fdf9106ded161b08dd2ea4212bbae1294ff8cd"
+dependencies = [
+ "arrayvec 0.4.12",
+ "bitflags",
+ "block",
+ "cocoa 0.19.1",
+ "copyless",
+ "core-graphics 0.17.3",
+ "foreign-types",
+ "gfx-hal",
+ "log",
+ "metal",
+ "objc",
+ "parking_lot 0.9.0",
+ "range-alloc",
+ "raw-window-handle 0.1.2",
+ "smallvec 0.6.13",
+ "spirv_cross",
+ "storage-map",
+ "winit",
+]
+
+[[package]]
 name = "gfx-backend-vulkan"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1755,6 +1813,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "js-sys"
+version = "0.3.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa5a448de267e7358beaf4a5d849518fe9a0c13fce7afd44b06e68550e5562a7"
+dependencies = [
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "laminar"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1954,6 +2021,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4fc2c02a7e374099d4ee95a193111f72d2110197fe200272371758f6c3643d8"
 dependencies = [
  "autocfg 1.0.0",
+]
+
+[[package]]
+name = "metal"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2832bd32c9068fb916aea0086f7422b8c31fd604d83b4393062974f862480a8f"
+dependencies = [
+ "bitflags",
+ "block",
+ "cocoa 0.19.1",
+ "core-graphics 0.17.3",
+ "foreign-types",
+ "log",
+ "objc",
 ]
 
 [[package]]
@@ -2214,6 +2296,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "915b1b472bc21c53464d6c8461c9d3af805ba1ef837e1cac254428f4a77177b1"
 dependencies = [
  "malloc_buf",
+ "objc_exception",
 ]
 
 [[package]]
@@ -2225,6 +2308,15 @@ dependencies = [
  "block",
  "objc",
  "objc_id",
+]
+
+[[package]]
+name = "objc_exception"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad970fb455818ad6cba4c122ad012fae53ae8b4795f86378bce65e4f6bab2ca4"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -2756,6 +2848,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "range-alloc"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd5927936723a9e8b715d37d7e4b390455087c4bdf25b9f702309460577b14f9"
+
+[[package]]
 name = "raw-window-handle"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3092,6 +3190,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa01882dc9f3f64684393724d0d49d2315b612eeeb029eded2181385d796c75f"
 dependencies = [
  "derivative 1.0.4",
+ "gfx-backend-empty",
+ "gfx-backend-metal",
  "gfx-backend-vulkan",
  "gfx-hal",
  "lazy_static",
@@ -3516,6 +3616,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "spirv_cross"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd72403fee8f7ec2f4f453dfbaf39ccdd4c6d0157d67d6e65513cd26cc49289f"
+dependencies = [
+ "cc",
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3598,6 +3709,15 @@ name = "stdweb-internal-runtime"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
+
+[[package]]
+name = "storage-map"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd0a4829a5c591dc24a944a736d6b1e4053e51339a79fd5d4702c4c999a9c45e"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "syn"
@@ -4060,7 +4180,7 @@ dependencies = [
  "android_glue",
  "backtrace",
  "bitflags",
- "cocoa",
+ "cocoa 0.18.5",
  "core-foundation 0.6.4",
  "core-graphics 0.17.3",
  "image 0.21.3",
