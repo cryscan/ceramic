@@ -13,7 +13,7 @@ use itertools::{Itertools, multizip};
 use serde::{Deserialize, Serialize};
 
 pub use frame::FrameSystem;
-pub use locomotion::LocomotionSystem;
+pub use locomotion::{LocomotionSystem, OscillatorSystem};
 pub use track::{Tracker, TrackerPrefab, TrackSystem};
 
 pub mod frame;
@@ -60,7 +60,7 @@ pub struct Limb {
     config: Config,
 
     signal: Complex<f32>,
-    previous: Complex<f32>,
+    transition: bool,
 }
 
 impl Limb {
@@ -148,7 +148,7 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 config: self.config.clone(),
 
                 signal,
-                previous: signal,
+                transition: false,
             })
             .collect_vec()
             .as_slice()

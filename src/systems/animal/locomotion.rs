@@ -6,6 +6,7 @@ use amethyst::{
     ecs::prelude::*,
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
+use amethyst_physics::PhysicsTime;
 use interpolation::Lerp;
 use itertools::Itertools;
 use num_traits::Zero;
@@ -71,9 +72,6 @@ impl<'a> System<'a> for LocomotionSystem {
                     let step_radius = limb.step_radius();
                     let flight_time = limb.flight_time();
 
-                    let ref signal = limb.signal;
-                    let ref previous = limb.previous;
-
                     {
                         let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
                         debug_lines.draw_rotated_circle(
@@ -87,6 +85,7 @@ impl<'a> System<'a> for LocomotionSystem {
                         let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
                         debug_lines.draw_sphere(foot.clone(), 0.2, 4, 4, color);
 
+                        let signal = limb.signal;
                         let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
                         let ref direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
                         let direction = transforms.global_transform(limb.foot).transform_vector(direction);
@@ -96,9 +95,13 @@ impl<'a> System<'a> for LocomotionSystem {
                     limb.state = match &limb.state {
                         State::Stance => {
                             let condition = {
-                                let step = delta.norm() > step_radius;
-                                let signal = signal.im > 0.0 && previous.im < 0.0;
-                                if limb.angular_velocity > limb.threshold { signal } else { step }
+                                if limb.angular_velocity > limb.threshold {
+                                    let transition = limb.transition;
+                                    limb.transition = false;
+                                    transition
+                                } else {
+                                    delta.norm() > step_radius
+                                }
                             };
                             if condition {
                                 let stance = foot.clone();
@@ -169,7 +172,21 @@ impl<'a> System<'a> for LocomotionSystem {
                     }
                 }
             }
+        }
+    }
+}
 
+#[derive(Default, SystemDesc)]
+pub struct OscillatorSystem;
+
+impl<'a> System<'a> for OscillatorSystem {
+    type SystemData = (
+        WriteStorage<'a, Quadruped>,
+        Read<'a, PhysicsTime>,
+    );
+
+    fn run(&mut self, (mut quadrupeds, time): Self::SystemData) {
+        for quadruped in (&mut quadrupeds).join() {
             const WEIGHTS: [[f32; 4]; 4] = [
                 [0.0, 1.0, 0.0, 1.0],
                 [1.0, 0.0, 1.0, 0.0],
@@ -189,10 +206,10 @@ impl<'a> System<'a> for LocomotionSystem {
                 [-PI, 0.0, -PI, 0.0],
             ];
             const GALLOP_PHASES: [[f32; 4]; 4] = [
-                [0.0, FRAC_PI_2, 0.0, 3.0 * FRAC_PI_2],
-                [-FRAC_PI_2, 0.0, 3.0 * FRAC_PI_2, 0.0],
-                [0.0, -3.0 * FRAC_PI_2, 0.0, FRAC_PI_2],
-                [-3.0 * FRAC_PI_2, 0.0, -FRAC_PI_2, 0.0],
+                [0.0, FRAC_PI_2, 0.0, -PI],
+                [-FRAC_PI_2, 0.0, FRAC_PI_2, 0.0],
+                [0.0, -FRAC_PI_2, 0.0, 0.0],
+                [PI, 0.0, 0.0, 0.0],
             ];
 
             let previous = quadruped.limbs.iter()
@@ -200,7 +217,6 @@ impl<'a> System<'a> for LocomotionSystem {
                 .collect_vec();
             for (i, limb) in quadruped.limbs.iter_mut().enumerate() {
                 let ref mut signal = limb.signal;
-                limb.previous = *signal;
 
                 let angular_velocity = limb.angular_velocity;
                 let duty_factor = limb.duty_factor;
@@ -216,23 +232,29 @@ impl<'a> System<'a> for LocomotionSystem {
 
                 for (j, signal) in previous.iter().enumerate() {
                     let weight = WEIGHTS[i][j];
-                    let ref phi = if duty_factor > 0.5 {
-                        let trot = TROT_PHASES[i][j];
-                        let ref diagonal = DIAGONAL_PHASES[i][j];
-                        let ref factor = (duty_factor - 0.5) / 0.5;
-                        trot.lerp(diagonal, factor)
-                    } else {
-                        let gallop = GALLOP_PHASES[i][j];
-                        let ref trot = TROT_PHASES[i][j];
-                        let ref factor = duty_factor / 0.5;
-                        gallop.lerp(trot, factor)
+                    let ref phi = match duty_factor {
+                        factor if factor > 0.5 => {
+                            let trot = TROT_PHASES[i][j];
+                            let ref diagonal = DIAGONAL_PHASES[i][j];
+                            let ref factor = (duty_factor - 0.5) / 0.5;
+                            trot.lerp(diagonal, factor)
+                        }
+                        factor if factor > 0.3 => {
+                            let gallop = GALLOP_PHASES[i][j];
+                            let ref trot = TROT_PHASES[i][j];
+                            let ref factor = duty_factor / 0.5;
+                            gallop.lerp(trot, factor)
+                        }
+                        _ => GALLOP_PHASES[i][j],
                     };
 
                     let delta = weight * signal * Complex::from_polar(&1.0, phi);
                     derivative += delta;
                 }
 
-                *signal += derivative.scale(delta_seconds);
+                let previous = *signal;
+                *signal += derivative.scale(time.delta_seconds());
+                if signal.im > 0.0 && previous.im < 0.0 { limb.transition = true; }
             }
         }
     }

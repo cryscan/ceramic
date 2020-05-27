@@ -13,12 +13,14 @@ use amethyst::{
     },
     utils::{application_root_dir, auto_fov::AutoFovSystem},
 };
+use amethyst_nphysics::NPhysicsBackend;
+use amethyst_physics::PhysicsBundle;
 
 use crate::{
     scene::SceneLoaderSystemDesc,
     state::load::LoadState,
     systems::{
-        animal::{FrameSystem, LocomotionSystem, TrackSystem},
+        animal::{FrameSystem, LocomotionSystem, OscillatorSystem, TrackSystem},
         kinematics::KinematicsSystem,
         player::PlayerSystem,
     },
@@ -56,11 +58,12 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(RenderDebugLines::default())
                 .with_plugin(RenderSkybox::default()),
         )?
-        .with_system_desc(
-            SceneLoaderSystemDesc::default(),
-            "gltf_loader",
-            &[],
-        )
+        .with_bundle(
+            PhysicsBundle::<f32, NPhysicsBackend>::new()
+                .with_frames_per_seconds(60)
+                .with_in_physics(OscillatorSystem::default(), "oscillator".into(), vec![])
+        )?
+        .with_system_desc(SceneLoaderSystemDesc::default(), "gltf_loader", &[])
         .with(PlayerSystem::default(), "player", &[])
         .with_bundle(animation_bundle)?
         .with_bundle(ArcBallControlBundle::<StringBindings>::new())?
