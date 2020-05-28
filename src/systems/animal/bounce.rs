@@ -13,9 +13,9 @@ use crate::utils::{match_shape, transform::Helper};
 use super::{Quadruped, State};
 
 #[derive(Default, SystemDesc)]
-pub struct FrameSystem;
+pub struct BounceSystem;
 
-impl<'a> System<'a> for FrameSystem {
+impl<'a> System<'a> for BounceSystem {
     type SystemData = (
         Entities<'a>,
         WriteStorage<'a, Transform>,

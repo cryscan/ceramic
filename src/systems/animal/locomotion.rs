@@ -7,6 +7,7 @@ use amethyst::{
     renderer::{debug_drawing::DebugLines, palette::Srgba},
 };
 use amethyst_physics::PhysicsTime;
+use easer::functions::{Cubic, Easing, Sine};
 use interpolation::Lerp;
 use itertools::Itertools;
 use num_traits::Zero;
@@ -118,8 +119,12 @@ impl<'a> System<'a> for LocomotionSystem {
                             if limb.angular_velocity > limb.threshold {
                                 next += velocity * (flight_time - time) + direction * step_radius;
                             }
-                            // Todo: Change this after ray casting works.
                             next.coords.y = limb.config.stance_height;
+
+                            {
+                                let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+                                debug_lines.draw_sphere(next.clone(), 0.1, 4, 4, color);
+                            }
 
                             if time < flight_time {
                                 let ref stance = stance.coords;
@@ -133,11 +138,11 @@ impl<'a> System<'a> for LocomotionSystem {
                                 let step_length = step_radius * 2.0;
                                 let height = limb.config.flight_factor * step_length;
 
-                                let factor = time / flight_time;
-                                // let factor = Back::ease_in(time, 0.0, 1.0, flight_time);
+                                // let factor = time / flight_time;
+                                let factor = Sine::ease_in(time, 0.0, 1.0, flight_time);
 
                                 let translation = {
-                                    let ref center = next.lerp(stance, 0.5) + direction * height;
+                                    let ref center = next.lerp(stance, 0.2) + direction * height;
                                     let ref first = stance.lerp(center, factor);
                                     let ref second = center.lerp(next, factor);
                                     first.lerp(second, factor)
@@ -149,8 +154,8 @@ impl<'a> System<'a> for LocomotionSystem {
                                     .rotation()
                                     .clone();
 
+                                let ref factor = Cubic::ease_in_out(time, 0.0, 1.0, flight_time);
                                 let angle = {
-                                    let ref factor = factor;
                                     let ref center = FRAC_PI_2 * step_length / limb.config.step_limit[1];
                                     let ref first = 0.0.lerp(center, factor);
                                     let ref second = center.lerp(&0.0, factor);

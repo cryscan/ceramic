@@ -20,7 +20,7 @@ use crate::{
     scene::SceneLoaderSystemDesc,
     state::load::LoadState,
     systems::{
-        animal::{FrameSystem, LocomotionSystem, OscillatorSystem, TrackSystem},
+        animal::{BounceSystem, LocomotionSystem, OscillatorSystem, TrackSystem},
         kinematics::KinematicsSystem,
         player::PlayerSystem,
     },
@@ -44,8 +44,7 @@ fn main() -> amethyst::Result<()> {
     let animation_bundle = AnimationBundle::<usize, Transform>::new(
         "animation_control",
         "sampler_interpolation",
-    )
-        .with_dep(&["gltf_loader"]);
+    ).with_dep(&["gltf_loader"]);
 
     let input_bundle = InputBundle::<StringBindings>::new()
         .with_bindings_from_file(bindings_path)?;
@@ -79,12 +78,8 @@ fn main() -> amethyst::Result<()> {
         ]))?
         .with(KinematicsSystem::default(), "kinematics", &["transform_system"])
         .with(TrackSystem::default(), "track", &["transform_system"])
-        .with(FrameSystem::default(), "frame", &["transform_system"])
-        .with(LocomotionSystem::default(), "locomotion", &[
-            "player",
-            "frame",
-            "transform_system"
-        ])
+        .with(BounceSystem::default(), "bounce", &["transform_system"])
+        .with(LocomotionSystem::default(), "locomotion", &["transform_system"])
         .with_bundle(input_bundle)?
         .with(AutoFovSystem::new(), "auto_fov", &[]);
 

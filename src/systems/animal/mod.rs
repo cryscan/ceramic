@@ -12,11 +12,11 @@ use amethyst::{
 use itertools::{Itertools, multizip};
 use serde::{Deserialize, Serialize};
 
-pub use frame::FrameSystem;
+pub use bounce::BounceSystem;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
 pub use track::{Tracker, TrackerPrefab, TrackSystem};
 
-pub mod frame;
+pub mod bounce;
 pub mod locomotion;
 pub mod track;
 
