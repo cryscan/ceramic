@@ -14,14 +14,14 @@ use serde::{Deserialize, Serialize};
 
 pub use bounce::BounceSystem;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
-use redirect::RedirectItem as GenericRedirctItem;
+use redirect::RedirectItem as GenericRedirectItem;
 pub use track::TrackSystem;
 
 pub mod bounce;
 pub mod locomotion;
 pub mod track;
 
-type RedirectItem = GenericRedirctItem<String, usize>;
+type RedirectItem = GenericRedirectItem<String, usize>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Tracker {
