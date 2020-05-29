@@ -195,22 +195,20 @@ fn load_scene<'a, T>(
             .animation_set = Some(load_animations(gltf, buffers, &node_map)?);
     }
 
-    // load extras after loading all nodes
-    if options.load_extras {
-        load_extras(gltf, prefab, &node_map, &name_map)?;
-    }
+    // redirect extras after loading all nodes
+    redirect_extras(gltf, prefab, &node_map, &name_map)?;
 
     Ok(())
 }
 
-fn load_extras<'a, T>(
+fn redirect_extras<'a, T>(
     gltf: &Gltf,
     prefab: &mut Prefab<GltfPrefab<T>>,
     node_map: &HashMap<usize, usize>,
     name_map: &HashMap<String, usize>,
 ) -> Result<(), Error>
     where T: Extra<'a> {
-    for (node_index, ref node) in gltf.nodes().enumerate() {
+    for (node_index, ref _node) in gltf.nodes().enumerate() {
         let entity_index = node_map
             .get(&node_index)
             .expect("Unreachable: `node_map` should contain all nodes present in the scene");
@@ -222,9 +220,9 @@ fn load_extras<'a, T>(
                     name
                 ).as_str()
             );
-        if let Some(extras) = node.extras() {
-            let extras: T = serde_json::from_str(&*extras.get())?;
-            prefab.data_or_default(*entity_index).extras = Some(extras.redirect(name_map));
+        if let Some(extras) = prefab.data_or_default(*entity_index).extras.take() {
+            let extras = extras.redirect(name_map);
+            prefab.data_or_default(*entity_index).extras.replace(extras);
         }
     }
     Ok(())
@@ -251,7 +249,7 @@ fn load_node<'a, T>(
     parent_bounding_box: &mut GltfNodeExtent,
     material_set: &mut GltfMaterialSet,
 ) -> Result<(), Error>
-    where T: Default {
+    where T: Extra<'a> {
     node_map.insert(node.index(), entity_index);
 
     // Load node name.
@@ -298,6 +296,19 @@ fn load_node<'a, T>(
                 })?,
             },
         });
+
+        if let Some(extras) = camera.extras() {
+            prefab.data_or_default(entity_index).extras = Some(
+                serde_json::from_str(&*extras.get())?
+            );
+        }
+    }
+
+    // load extras
+    if let Some(extras) = node.extras() {
+        prefab.data_or_default(entity_index).extras = Some(
+            serde_json::from_str(&*extras.get())?
+        );
     }
 
     // load lights
@@ -308,34 +319,33 @@ fn load_node<'a, T>(
 
             let intensity = light.intensity();
             let range = light.range().unwrap_or_default();
-            prefab.data_or_default(entity_index).light.replace(
-                match light.kind() {
-                    Kind::Directional => {
-                        DirectionalLight {
-                            color,
-                            intensity,
-                            direction: -Vector3::z(),
-                        }.into()
-                    }
-                    Kind::Point => {
-                        PointLight {
-                            color,
-                            intensity,
-                            radius: range,
-                            ..Default::default()
-                        }.into()
-                    }
-                    Kind::Spot { inner_cone_angle: _, outer_cone_angle } => {
-                        SpotLight {
-                            angle: outer_cone_angle,
-                            color,
-                            direction: -Vector3::z(),
-                            intensity,
-                            range,
-                            ..Default::default()
-                        }.into()
-                    }
+            prefab.data_or_default(entity_index).light = Some(match light.kind() {
+                Kind::Directional => {
+                    DirectionalLight {
+                        color,
+                        intensity,
+                        direction: -Vector3::z(),
+                    }.into()
                 }
+                Kind::Point => {
+                    PointLight {
+                        color,
+                        intensity,
+                        radius: range,
+                        ..Default::default()
+                    }.into()
+                }
+                Kind::Spot { inner_cone_angle: _, outer_cone_angle } => {
+                    SpotLight {
+                        angle: outer_cone_angle,
+                        color,
+                        direction: -Vector3::z(),
+                        intensity,
+                        range,
+                        ..Default::default()
+                    }.into()
+                }
+            }
             );
         }
     }

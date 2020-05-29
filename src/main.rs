@@ -81,7 +81,7 @@ fn main() -> amethyst::Result<()> {
         .with(BounceSystem::default(), "bounce", &["transform_system"])
         .with(LocomotionSystem::default(), "locomotion", &["transform_system"])
         .with_bundle(input_bundle)?
-        .with(AutoFovSystem::new(), "auto_fov", &[]);
+        .with(AutoFovSystem::new(), "auto_fov", &["gltf_loader"]);
 
     let mut game = Application::new(assets_dir, LoadState::default(), game_data)?;
     game.run();

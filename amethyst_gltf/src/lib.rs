@@ -215,9 +215,6 @@ pub struct GltfSceneOptions {
     #[derivative(Default(value = "true"))]
     /// Load lights from the Gltf file
     pub load_lights: bool,
-    #[derivative(Default(value = "true"))]
-    /// Load extra data from the Gltf file
-    pub load_extras: bool,
     /// Flip the v coordinate for all texture coordinates
     pub flip_v_coord: bool,
     /// Load the given scene index, if not supplied will either load the default scene (if set),
