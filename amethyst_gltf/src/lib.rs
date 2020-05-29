@@ -3,6 +3,7 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms, rust_2018_compatibility)]
 #![warn(clippy::all)]
 #![allow(clippy::new_without_default)]
+#![feature(trait_alias)]
 
 use std::{collections::HashMap, ops::Range};
 
@@ -31,7 +32,6 @@ use amethyst_rendy::{
 };
 
 pub use crate::format::GltfSceneFormat;
-pub use crate::format::load::Load;
 
 mod error;
 mod format;

@@ -1,55 +1,14 @@
 use std::f32::{consts::FRAC_PI_2, EPSILON};
 
 use amethyst::{
-    assets::PrefabData,
     core::{math::{UnitQuaternion, Vector3}, Time, Transform},
     derive::SystemDesc,
     ecs::prelude::*,
-    error::Error,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::utils::transform::Helper;
 
-#[derive(Debug, Copy, Clone)]
-pub struct Tracker {
-    target: Entity,
-    limit: Option<f32>,
-    speed: f32,
-    rotation: Option<UnitQuaternion<f32>>,
-}
-
-impl Component for Tracker {
-    type Storage = DenseVecStorage<Self>;
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct TrackerPrefab {
-    pub target: usize,
-    pub limit: Option<f32>,
-    pub speed: f32,
-}
-
-impl<'a> PrefabData<'a> for TrackerPrefab {
-    type SystemData = WriteStorage<'a, Tracker>;
-    type Result = ();
-
-    fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
-    ) -> Result<Self::Result, Error> {
-        let component = Tracker {
-            target: entities[self.target],
-            limit: self.limit.clone(),
-            speed: self.speed,
-            rotation: None,
-        };
-        data.insert(entity, component).map(|_| ()).map_err(Into::into)
-    }
-}
+use super::Tracker;
 
 #[derive(Default, SystemDesc)]
 pub struct TrackSystem;

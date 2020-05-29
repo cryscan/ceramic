@@ -5,7 +5,7 @@ use std::{
 
 use amethyst::{
     assets::PrefabData,
-    core::math::{Complex, Point3},
+    core::math::{Complex, Point3, UnitQuaternion},
     ecs::prelude::*,
     error::Error,
 };
@@ -14,11 +14,55 @@ use serde::{Deserialize, Serialize};
 
 pub use bounce::BounceSystem;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
-pub use track::{Tracker, TrackerPrefab, TrackSystem};
+use redirect::RedirectItem as GenericRedirctItem;
+pub use track::TrackSystem;
 
 pub mod bounce;
 pub mod locomotion;
 pub mod track;
+
+type RedirectItem = GenericRedirctItem<String, usize>;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Tracker {
+    target: Entity,
+    limit: Option<f32>,
+    speed: f32,
+    rotation: Option<UnitQuaternion<f32>>,
+}
+
+impl Component for Tracker {
+    type Storage = DenseVecStorage<Self>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackerPrefab {
+    pub target: RedirectItem,
+    pub limit: Option<f32>,
+    pub speed: f32,
+}
+
+impl<'a> PrefabData<'a> for TrackerPrefab {
+    type SystemData = WriteStorage<'a, Tracker>;
+    type Result = ();
+
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let target = self.target.clone().unwrap();
+        let component = Tracker {
+            target: entities[target],
+            limit: self.limit.clone(),
+            speed: self.speed,
+            rotation: None,
+        };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 enum State {
@@ -102,12 +146,12 @@ impl Component for Quadruped {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuadrupedPrefab {
-    pub feet: [usize; 4],
-    pub anchors: [usize; 4],
-    pub pivots: [usize; 4],
-    pub root: usize,
+    pub feet: Vec<RedirectItem>,
+    pub anchors: Vec<RedirectItem>,
+    pub pivots: Vec<RedirectItem>,
+    pub root: RedirectItem,
 
     #[serde(flatten)]
     pub config: Config,
@@ -131,8 +175,16 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 Complex::from_polar(radius, angle)
             })
             .collect_vec();
-        let limbs = multizip((&self.feet, &self.anchors, &self.pivots, &signals))
-            .map(|(&foot, &anchor, &pivot, &signal)| Limb {
+        let limbs = multizip((&self.feet, &self.anchors, &self.pivots, signals))
+            .map(|(foot, anchor, pivot, signal)| {
+                let (foot, anchor, pivot) = multizip((foot.iter(), anchor.iter(), pivot.iter()))
+                    .collect_vec()
+                    .first()
+                    .unwrap()
+                    .clone();
+                (foot, anchor, pivot, signal)
+            })
+            .map(|(foot, anchor, pivot, signal)| Limb {
                 foot: entities[foot],
                 anchor: entities[anchor],
                 pivot: entities[pivot],
@@ -154,7 +206,7 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             .as_slice()
             .try_into()
             .unwrap();
-        let component = Quadruped { limbs, root: entities[self.root] };
+        let component = Quadruped { limbs, root: entities[self.root.clone().unwrap()] };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

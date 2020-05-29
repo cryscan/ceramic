@@ -256,6 +256,7 @@ dependencies = [
  "itertools 0.8.2",
  "log",
  "mikktspace",
+ "redirect",
  "serde",
  "serde_json",
 ]
@@ -649,6 +650,7 @@ dependencies = [
  "itertools 0.9.0",
  "num-traits 0.2.11",
  "rand 0.7.3",
+ "redirect",
  "serde",
 ]
 
@@ -2908,6 +2910,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
 dependencies = [
  "rand_core 0.3.1",
+]
+
+[[package]]
+name = "redirect"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

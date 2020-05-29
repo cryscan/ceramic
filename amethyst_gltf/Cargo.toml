@@ -30,6 +30,7 @@ log = "0.4.6"
 mikktspace = "0.2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+redirect = { path = "../redirect" }
 
 thread_profiler = { version = "0.3", optional = true }
 image = "0.22.2"

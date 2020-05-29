@@ -1,5 +1,3 @@
-use std::{collections::HashMap};
-
 use amethyst::{
     assets::{PrefabData, ProgressCounter},
     controls::ControlTagPrefab,
@@ -8,15 +6,20 @@ use amethyst::{
     error::Error,
     utils::auto_fov::AutoFov,
 };
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc, Load};
+use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc};
+use redirect::{Redirect, RedirectItem as GenericRedirectItem};
 
 use crate::systems::{
     animal::{QuadrupedPrefab, TrackerPrefab},
     kinematics::{ChainPrefab, ConstrainPrefab},
     player::Player,
 };
+use crate::systems::kinematics::{DirectionPrefab, PolePrefab};
+
+type RedirectItem = GenericRedirectItem<String, usize>;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PrefabData)]
 #[serde(default)]
@@ -30,33 +33,85 @@ pub struct Extras {
     control_tag: Option<ControlTagPrefab>,
 }
 
-impl Load for Extras {
-    fn load_index(&mut self, node_map: &HashMap<usize, usize>) {
-        let index_mut = |node: &mut usize| *node = *node_map.get(node).unwrap();
+impl Redirect<String, usize> for QuadrupedPrefab {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        let map = |item: RedirectItem| item.redirect(map);
 
-        if let Some(ref mut quadruped) = self.quadruped {
-            quadruped.anchors.iter_mut().for_each(index_mut);
-            quadruped.pivots.iter_mut().for_each(index_mut);
-            quadruped.feet.iter_mut().for_each(index_mut);
-            index_mut(&mut quadruped.root);
+        let anchors = self.anchors.into_iter().map(map).collect_vec();
+        let pivots = self.pivots.into_iter().map(map).collect_vec();
+        let feet = self.feet.into_iter().map(map).collect_vec();
+        let root = map(self.root);
+
+        QuadrupedPrefab {
+            feet,
+            anchors,
+            pivots,
+            root,
+            config: self.config,
         }
-        if let Some(ref mut tracker) = self.tracker {
-            index_mut(&mut tracker.target);
+    }
+}
+
+impl Redirect<String, usize> for TrackerPrefab {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        let target = self.target.redirect(map);
+        TrackerPrefab {
+            target,
+            limit: self.limit,
+            speed: self.speed,
         }
-        if let Some(ref mut chain) = self.chain {
-            index_mut(&mut chain.target);
+    }
+}
+
+impl Redirect<String, usize> for ChainPrefab {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        let target = self.target.redirect(map);
+        ChainPrefab {
+            target,
+            length: self.length,
         }
-        if let Some(ref mut constrain) = self.constrain {
-            match *constrain {
-                ConstrainPrefab::Direction(ref mut direction) => {
-                    index_mut(&mut direction.target);
-                }
-                ConstrainPrefab::Pole(ref mut pole) => {
-                    index_mut(&mut pole.target);
-                }
-                _ => {}
+    }
+}
+
+impl Redirect<String, usize> for ConstrainPrefab {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        match self {
+            ConstrainPrefab::Direction(direction) => {
+                let target = direction.target.redirect(map);
+                ConstrainPrefab::Direction(DirectionPrefab { target })
             }
+            ConstrainPrefab::Pole(pole) => {
+                let target = pole.target.redirect(map);
+                ConstrainPrefab::Pole(PolePrefab { target })
+            }
+            _ => self,
         }
+    }
+}
+
+impl Redirect<String, usize> for Extras {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        let mut extras = self.clone();
+
+        if let Some(quadruped) = self.quadruped {
+            extras.quadruped.replace(quadruped.redirect(map));
+        };
+        if let Some(tracker) = self.tracker {
+            extras.tracker.replace(tracker.redirect(map));
+        }
+        if let Some(chain) = self.chain {
+            extras.chain.replace(chain.redirect(map));
+        }
+        if let Some(constrain) = self.constrain {
+            extras.constrain.replace(constrain.redirect(map));
+        }
+
+        extras
     }
 }
 

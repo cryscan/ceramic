@@ -18,6 +18,7 @@ use amethyst_rendy::{
     light::{DirectionalLight, PointLight, SpotLight},
     palette::Srgb,
 };
+use redirect::Redirect;
 
 use crate::{error, GltfMaterialSet, GltfNodeExtent, GltfPrefab, GltfSceneOptions, Named};
 
@@ -27,7 +28,6 @@ use self::{
     material::load_material,
     mesh::load_mesh,
     skin::load_skin,
-    load::Load,
 };
 
 mod animation;
@@ -35,7 +35,8 @@ mod importer;
 mod material;
 mod mesh;
 mod skin;
-pub(crate) mod load;
+
+pub trait Extra<'a> = Default + Redirect<String, usize> + Serialize + DeserializeOwned + PrefabData<'a>;
 
 /// Gltf scene format, will load a single scene from a Gltf file.
 ///
@@ -49,7 +50,7 @@ pub(crate) mod load;
 pub struct GltfSceneFormat(pub GltfSceneOptions);
 
 impl<'a, T> Format<Prefab<GltfPrefab<T>>> for GltfSceneFormat
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> + 'static {
+    where T: Extra<'a> + 'static {
     fn name(&self) -> &'static str {
         "GLTFScene"
     }
@@ -72,7 +73,7 @@ fn load_gltf<'a, T>(
     name: &str,
     options: &GltfSceneOptions,
 ) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Extra<'a> {
     debug!("Loading GLTF scene '{}'", name);
     import(source.clone(), name)
         .with_context(|_| error::Error::GltfImporterError)
@@ -88,7 +89,7 @@ fn load_data<'a, T>(
     source: Arc<dyn Source>,
     name: &str,
 ) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Extra<'a> {
     let scene_index = get_scene_index(gltf, options)?;
     let mut prefab = Prefab::<GltfPrefab<T>>::new();
     load_scene(
@@ -125,12 +126,13 @@ fn load_scene<'a, T>(
     name: &str,
     prefab: &mut Prefab<GltfPrefab<T>>,
 ) -> Result<(), Error>
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Extra<'a> {
     let scene = gltf
         .scenes()
         .nth(scene_index)
         .expect("Tried to load a scene which does not exist");
     let mut node_map = HashMap::new();
+    let mut name_map = HashMap::new();
     let mut skin_map = HashMap::new();
     let mut bounding_box = GltfNodeExtent::default();
     let mut material_set = GltfMaterialSet::default();
@@ -146,6 +148,7 @@ fn load_scene<'a, T>(
             name,
             prefab,
             &mut node_map,
+            &mut name_map,
             &mut skin_map,
             &mut bounding_box,
             &mut material_set,
@@ -194,7 +197,7 @@ fn load_scene<'a, T>(
 
     // load extras after loading all nodes
     if options.load_extras {
-        load_extras(gltf, prefab, &node_map)?;
+        load_extras(gltf, prefab, &node_map, &name_map)?;
     }
 
     Ok(())
@@ -204,16 +207,24 @@ fn load_extras<'a, T>(
     gltf: &Gltf,
     prefab: &mut Prefab<GltfPrefab<T>>,
     node_map: &HashMap<usize, usize>,
+    name_map: &HashMap<String, usize>,
 ) -> Result<(), Error>
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Extra<'a> {
     for (node_index, ref node) in gltf.nodes().enumerate() {
         let entity_index = node_map
             .get(&node_index)
             .expect("Unreachable: `node_map` should contain all nodes present in the scene");
+        let ref name_map = |name: String| *name_map
+            .get(name.as_str())
+            .expect(
+                format!(
+                    "No such node with name {}",
+                    name
+                ).as_str()
+            );
         if let Some(extras) = node.extras() {
-            let mut extras: T = serde_json::from_str(&*extras.get())?;
-            extras.load_index(node_map);
-            prefab.data_or_default(*entity_index).extras = Some(extras);
+            let extras: T = serde_json::from_str(&*extras.get())?;
+            prefab.data_or_default(*entity_index).extras = Some(extras.redirect(name_map));
         }
     }
     Ok(())
@@ -235,16 +246,18 @@ fn load_node<'a, T>(
     name: &str,
     prefab: &mut Prefab<GltfPrefab<T>>,
     node_map: &mut HashMap<usize, usize>,
+    name_map: &mut HashMap<String, usize>,
     skin_map: &mut HashMap<usize, SkinInfo>,
     parent_bounding_box: &mut GltfNodeExtent,
     material_set: &mut GltfMaterialSet,
 ) -> Result<(), Error>
-    where T: Default + Load + Serialize + DeserializeOwned + PrefabData<'a> {
+    where T: Default {
     node_map.insert(node.index(), entity_index);
 
     // Load node name.
     if let Some(name) = node.name() {
         prefab.data_or_default(entity_index).name = Some(Named::new(name.to_string()));
+        name_map.insert(name.to_string(), entity_index);
     }
 
     // Load transformation data, default will be identity
@@ -274,7 +287,7 @@ fn load_node<'a, T>(
                         "Camera {} is a perspective projection, but has no aspect ratio",
                         camera.index()
                     )
-                })?,
+                }).unwrap_or(1.3),
                 fovy: proj.yfov(),
                 znear: proj.znear(),
                 zfar: proj.zfar().ok_or_else(|| {
@@ -404,6 +417,7 @@ fn load_node<'a, T>(
             name,
             prefab,
             node_map,
+            name_map,
             skin_map,
             &mut bounding_box,
             material_set,

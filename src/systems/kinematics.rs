@@ -20,7 +20,11 @@ use amethyst::prelude::SystemDesc;
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
+use redirect::RedirectItem as GenericRedirectItem;
+
 use crate::utils::transform::Helper;
+
+type RedirectItem = GenericRedirectItem<String, usize>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
@@ -32,9 +36,9 @@ impl Component for Chain {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainPrefab {
-    pub target: usize,
+    pub target: RedirectItem,
     pub length: usize,
 }
 
@@ -49,9 +53,10 @@ impl<'a> PrefabData<'a> for ChainPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
+        let target = self.target.clone().unwrap();
         let component = Chain {
+            target: entities[target],
             length: self.length,
-            target: entities[self.target],
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -67,9 +72,9 @@ impl Component for Direction {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectionPrefab {
-    pub target: usize,
+    pub target: RedirectItem,
 }
 
 impl<'a> PrefabData<'a> for DirectionPrefab {
@@ -83,8 +88,9 @@ impl<'a> PrefabData<'a> for DirectionPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
+        let target = self.target.clone().unwrap();
         let component = Direction {
-            target: entities[self.target],
+            target: entities[target],
             rotation: None,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
@@ -112,9 +118,9 @@ impl Component for Pole {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolePrefab {
-    pub target: usize,
+    pub target: RedirectItem,
 }
 
 impl<'a> PrefabData<'a> for PolePrefab {
@@ -128,12 +134,13 @@ impl<'a> PrefabData<'a> for PolePrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let component = Pole { target: entities[self.target] };
+        let target = self.target.clone().unwrap();
+        let component = Pole { target: entities[target] };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
+#[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
     Direction(DirectionPrefab),
