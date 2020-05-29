@@ -18,7 +18,7 @@ pub struct LoadState {
 impl SimpleState for LoadState {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         println!("Loading...");
-        let handle = self.load_scene(data.world, "model/cat.gltf".into());
+        let handle = self.load_scene(data.world, "model/cat.glb".into());
         data.world.create_entity().with(handle).build();
     }
 
