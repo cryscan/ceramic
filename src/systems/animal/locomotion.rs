@@ -1,4 +1,4 @@
-use std::f32::{consts::{FRAC_PI_2, PI}, EPSILON};
+use std::f32::{consts::{FRAC_PI_2, FRAC_PI_4, PI}, EPSILON};
 
 use amethyst::{
     core::{math::{Complex, UnitQuaternion, Vector3}, Time, Transform},
@@ -214,10 +214,10 @@ impl<'a> System<'a> for OscillatorSystem {
                 [-PI, 0.0, -PI, 0.0],
             ];
             const GALLOP_PHASES: [[f32; 4]; 4] = [
-                [0.0, FRAC_PI_2, 0.0, -PI],
-                [-FRAC_PI_2, 0.0, FRAC_PI_2, 0.0],
-                [0.0, -FRAC_PI_2, 0.0, 0.0],
-                [PI, 0.0, 0.0, 0.0],
+                [0.0, FRAC_PI_2, 0.0, -3.0 * FRAC_PI_4],
+                [-FRAC_PI_2, 0.0, 3.0 * FRAC_PI_4, 0.0],
+                [0.0, -3.0 * FRAC_PI_4, 0.0, 0.0],
+                [3.0 * FRAC_PI_4, 0.0, 0.0, 0.0],
             ];
 
             let previous = quadruped.limbs.iter()
