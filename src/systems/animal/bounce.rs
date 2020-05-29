@@ -1,5 +1,3 @@
-use std::f32::EPSILON;
-
 use amethyst::{
     core::{math::Vector3, Transform},
     derive::SystemDesc,
@@ -76,7 +74,7 @@ impl<'a> System<'a> for BounceSystem {
                 }
             }
 
-            let (translation, rotation) = match_shape(origins, anchors, EPSILON, 10);
+            let (translation, rotation) = match_shape(origins, anchors, 0.01, 10);
             transforms
                 .get_mut(quadruped.root)
                 .unwrap()

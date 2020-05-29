@@ -74,6 +74,9 @@ impl<'a> System<'a> for LocomotionSystem {
                     let flight_time = limb.flight_time();
 
                     {
+                        let mut home = home.clone();
+                        home.coords.y = limb.config.stance_height;
+
                         let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
                         debug_lines.draw_rotated_circle(
                             home.clone(),
@@ -90,7 +93,7 @@ impl<'a> System<'a> for LocomotionSystem {
                         let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
                         let ref direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
                         let direction = transforms.global_transform(limb.foot).transform_vector(direction);
-                        debug_lines.draw_direction(home.clone(), direction, color);
+                        debug_lines.draw_direction(home, direction, color);
                     }
 
                     limb.state = match &limb.state {
@@ -138,7 +141,6 @@ impl<'a> System<'a> for LocomotionSystem {
                                 let step_length = step_radius * 2.0;
                                 let height = limb.config.flight_factor * step_length;
 
-                                // let factor = time / flight_time;
                                 let factor = Sine::ease_in(time, 0.0, 1.0, flight_time);
 
                                 let translation = {
@@ -156,7 +158,8 @@ impl<'a> System<'a> for LocomotionSystem {
 
                                 let ref factor = Cubic::ease_in_out(time, 0.0, 1.0, flight_time);
                                 let angle = {
-                                    let ref center = FRAC_PI_2 * step_length / limb.config.step_limit[1];
+                                    let max_step_length = limb.config.step_limit[1];
+                                    let ref center = FRAC_PI_2 * step_length / max_step_length;
                                     let ref first = 0.0.lerp(center, factor);
                                     let ref second = center.lerp(&0.0, factor);
                                     first.lerp(second, factor)
