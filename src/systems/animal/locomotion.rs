@@ -174,6 +174,10 @@ impl<'a> System<'a> for LocomotionSystem {
 
                                 State::Flight { stance: stance.xyz().into(), time: delta_seconds + time }
                             } else {
+                                transforms
+                                    .get_mut(limb.foot)
+                                    .unwrap()
+                                    .set_translation(next.coords);
                                 State::Stance
                             }
                         }

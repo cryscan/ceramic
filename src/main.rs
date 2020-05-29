@@ -76,7 +76,7 @@ fn main() -> amethyst::Result<()> {
             "animation_control",
             "sampler_interpolation",
         ]))?
-        .with_bundle(KinematicsBundle::new(2, 0.1))?
+        .with_bundle(KinematicsBundle::new(2, 0.01))?
         .with(TrackSystem::default(), "track", &["transform_system"])
         .with(BounceSystem::default(), "bounce", &["transform_system"])
         .with(LocomotionSystem::default(), "locomotion", &["transform_system"])
