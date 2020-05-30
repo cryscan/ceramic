@@ -86,17 +86,15 @@ pub struct Config {
 pub struct Limb {
     foot: Entity,
     anchor: Entity,
-    pivot: Entity,
+    root: Entity,
     state: State,
-
-    /// The home position of foot related to pivot.
+    /// The home position of foot related to root.
     home: Option<Point3<f32>>,
-    /// The original position of the anchor related to entity.
+    /// The original position of the anchor related to root.
     origin: Option<Point3<f32>>,
 
     radius: f32,
     angular_velocity: f32,
-
     /// The minimum angular velocity whose flight time is greater than `flight_time`.
     threshold: f32,
     duty_factor: f32,
@@ -150,7 +148,7 @@ impl Component for Quadruped {
 pub struct QuadrupedPrefab {
     pub feet: Vec<RedirectItem>,
     pub anchors: Vec<RedirectItem>,
-    pub pivots: Vec<RedirectItem>,
+    pub roots: Vec<RedirectItem>,
     pub root: RedirectItem,
 
     #[serde(flatten)]
@@ -175,19 +173,19 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
                 Complex::from_polar(radius, angle)
             })
             .collect_vec();
-        let limbs = multizip((&self.feet, &self.anchors, &self.pivots, signals))
-            .map(|(foot, anchor, pivot, signal)| {
-                let (foot, anchor, pivot) = multizip((foot.iter(), anchor.iter(), pivot.iter()))
+        let limbs = multizip((&self.feet, &self.anchors, &self.roots, signals))
+            .map(|(foot, anchor, root, signal)| {
+                let (foot, anchor, root) = multizip((foot.iter(), anchor.iter(), root.iter()))
                     .collect_vec()
                     .first()
                     .unwrap()
                     .clone();
-                (foot, anchor, pivot, signal)
+                (foot, anchor, root, signal)
             })
-            .map(|(foot, anchor, pivot, signal)| Limb {
+            .map(|(foot, anchor, root, signal)| Limb {
                 foot: entities[foot],
                 anchor: entities[anchor],
-                pivot: entities[pivot],
+                root: entities[root],
                 state: State::Stance,
                 home: None,
                 origin: None,
@@ -206,7 +204,8 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             .as_slice()
             .try_into()
             .unwrap();
-        let component = Quadruped { limbs, root: entities[self.root.clone().unwrap()] };
+        let root = self.root.clone().unwrap();
+        let component = Quadruped { limbs, root: entities[root] };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

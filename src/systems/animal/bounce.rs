@@ -28,18 +28,18 @@ impl<'a> System<'a> for BounceSystem {
             mut quadrupeds,
             mut debug_lines
         ) = data;
-        for (entity, quadruped) in (&*entities, &mut quadrupeds).join() {
+        for (_entity, quadruped) in (&*entities, &mut quadrupeds).join() {
             let mut anchors = Vec::new();
             let mut origins = Vec::new();
 
             for limb in quadruped.limbs.iter_mut() {
                 if limb.origin.is_none() {
                     let ref anchor = transforms.global_position(limb.anchor);
-                    limb.origin.replace(transforms.local_transform(entity).transform_point(anchor));
+                    limb.origin.replace(transforms.local_transform(limb.root).transform_point(anchor));
                 }
 
                 if let Some(ref origin) = limb.origin {
-                    let origin = transforms.global_transform(entity).transform_point(origin);
+                    let origin = transforms.global_transform(limb.root).transform_point(origin);
                     let mut anchor = origin.clone();
 
                     let length = anchor.y - limb.config.stance_height;

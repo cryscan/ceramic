@@ -39,14 +39,14 @@ impl Redirect<String, usize> for QuadrupedPrefab {
         let map = |item: RedirectItem| item.redirect(map);
 
         let anchors = self.anchors.into_iter().map(map).collect_vec();
-        let pivots = self.pivots.into_iter().map(map).collect_vec();
+        let pivots = self.roots.into_iter().map(map).collect_vec();
         let feet = self.feet.into_iter().map(map).collect_vec();
         let root = map(self.root);
 
         QuadrupedPrefab {
             feet,
             anchors,
-            pivots,
+            roots: pivots,
             root,
             config: self.config,
         }

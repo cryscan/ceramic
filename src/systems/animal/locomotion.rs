@@ -47,14 +47,14 @@ impl<'a> System<'a> for LocomotionSystem {
             for limb in quadruped.limbs.iter_mut() {
                 if limb.home.is_none() {
                     let ref pivot = transforms.global_position(limb.foot);
-                    let home = transforms.local_transform(limb.pivot).transform_point(pivot);
+                    let home = transforms.local_transform(limb.root).transform_point(pivot);
                     limb.home.replace(home);
                 }
 
                 if let Some(ref home) = limb.home {
-                    let ref home = transforms.global_transform(limb.pivot).transform_point(home);
+                    let ref home = transforms.global_transform(limb.root).transform_point(home);
                     let ref foot = transforms.global_position(limb.foot);
-                    let ref pivot = transforms.global_position(limb.pivot);
+                    let ref root = transforms.global_position(limb.root);
                     let delta = foot - home;
 
                     let velocity = {
@@ -134,7 +134,7 @@ impl<'a> System<'a> for LocomotionSystem {
                                 let ref next = next.coords;
 
                                 let direction = {
-                                    let ref delta = pivot - foot;
+                                    let ref delta = root - foot;
                                     let direction = delta - direction.scale(direction.dot(delta));
                                     direction.try_normalize(EPSILON).unwrap_or(Vector3::zero())
                                 };
