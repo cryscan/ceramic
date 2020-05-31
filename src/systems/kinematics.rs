@@ -20,11 +20,10 @@ use amethyst::prelude::SystemDesc;
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
-use redirect::RedirectItem as GenericRedirectItem;
-
-use crate::utils::transform::Helper;
-
-type RedirectItem = GenericRedirectItem<String, usize>;
+use crate::{
+    scene::RedirectField,
+    utils::transform::Helper,
+};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Chain {
@@ -38,7 +37,7 @@ impl Component for Chain {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainPrefab {
-    pub target: RedirectItem,
+    pub target: RedirectField,
     pub length: usize,
 }
 
@@ -53,9 +52,8 @@ impl<'a> PrefabData<'a> for ChainPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let target = self.target.clone().unwrap();
         let component = Chain {
-            target: entities[target],
+            target: self.target.clone().into_entity(entities),
             length: self.length,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
@@ -74,7 +72,7 @@ impl Component for Direction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectionPrefab {
-    pub target: RedirectItem,
+    pub target: RedirectField,
 }
 
 impl<'a> PrefabData<'a> for DirectionPrefab {
@@ -88,9 +86,8 @@ impl<'a> PrefabData<'a> for DirectionPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let target = self.target.clone().unwrap();
         let component = Direction {
-            target: entities[target],
+            target: self.target.clone().into_entity(entities),
             rotation: None,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
@@ -120,7 +117,7 @@ impl Component for Pole {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolePrefab {
-    pub target: RedirectItem,
+    pub target: RedirectField,
 }
 
 impl<'a> PrefabData<'a> for PolePrefab {
@@ -134,8 +131,7 @@ impl<'a> PrefabData<'a> for PolePrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let target = self.target.clone().unwrap();
-        let component = Pole { target: entities[target] };
+        let component = Pole { target: self.target.clone().into_entity(entities) };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
 }

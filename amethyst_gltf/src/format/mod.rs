@@ -49,8 +49,7 @@ pub trait Extra<'a> = Default + Redirect<String, usize> + Serialize + Deserializ
 #[serde(transparent)]
 pub struct GltfSceneFormat(pub GltfSceneOptions);
 
-impl<'a, T> Format<Prefab<GltfPrefab<T>>> for GltfSceneFormat
-    where T: Extra<'a> + 'static {
+impl<'a, T: Extra<'a> + 'static> Format<Prefab<GltfPrefab<T>>> for GltfSceneFormat {
     fn name(&self) -> &'static str {
         "GLTFScene"
     }
@@ -68,12 +67,11 @@ impl<'a, T> Format<Prefab<GltfPrefab<T>>> for GltfSceneFormat
     }
 }
 
-fn load_gltf<'a, T>(
+fn load_gltf<'a, T: Extra<'a>>(
     source: Arc<dyn Source>,
     name: &str,
     options: &GltfSceneOptions,
-) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Extra<'a> {
+) -> Result<Prefab<GltfPrefab<T>>, Error> {
     debug!("Loading GLTF scene '{}'", name);
     import(source.clone(), name)
         .with_context(|_| error::Error::GltfImporterError)
@@ -82,14 +80,13 @@ fn load_gltf<'a, T>(
         })
 }
 
-fn load_data<'a, T>(
+fn load_data<'a, T: Extra<'a>>(
     gltf: &Gltf,
     buffers: &Buffers,
     options: &GltfSceneOptions,
     source: Arc<dyn Source>,
     name: &str,
-) -> Result<Prefab<GltfPrefab<T>>, Error>
-    where T: Extra<'a> {
+) -> Result<Prefab<GltfPrefab<T>>, Error> {
     let scene_index = get_scene_index(gltf, options)?;
     let mut prefab = Prefab::<GltfPrefab<T>>::new();
     load_scene(
@@ -117,7 +114,7 @@ fn get_scene_index(gltf: &Gltf, options: &GltfSceneOptions) -> Result<usize, Err
     }
 }
 
-fn load_scene<'a, T>(
+fn load_scene<'a, T: Extra<'a>>(
     gltf: &Gltf,
     scene_index: usize,
     buffers: &Buffers,
@@ -125,8 +122,7 @@ fn load_scene<'a, T>(
     source: Arc<dyn Source>,
     name: &str,
     prefab: &mut Prefab<GltfPrefab<T>>,
-) -> Result<(), Error>
-    where T: Extra<'a> {
+) -> Result<(), Error> {
     let scene = gltf
         .scenes()
         .nth(scene_index)
@@ -201,13 +197,12 @@ fn load_scene<'a, T>(
     Ok(())
 }
 
-fn redirect_extras<'a, T>(
+fn redirect_extras<'a, T: Extra<'a>>(
     gltf: &Gltf,
     prefab: &mut Prefab<GltfPrefab<T>>,
     node_map: &HashMap<usize, usize>,
     name_map: &HashMap<String, usize>,
-) -> Result<(), Error>
-    where T: Extra<'a> {
+) -> Result<(), Error> {
     for (node_index, ref _node) in gltf.nodes().enumerate() {
         let entity_index = node_map
             .get(&node_index)
@@ -234,7 +229,7 @@ struct SkinInfo {
     mesh_indices: Vec<usize>,
 }
 
-fn load_node<'a, T>(
+fn load_node<'a, T: Extra<'a>>(
     gltf: &Gltf,
     node: &gltf::Node<'_>,
     entity_index: usize,
@@ -248,8 +243,7 @@ fn load_node<'a, T>(
     skin_map: &mut HashMap<usize, SkinInfo>,
     parent_bounding_box: &mut GltfNodeExtent,
     material_set: &mut GltfMaterialSet,
-) -> Result<(), Error>
-    where T: Extra<'a> {
+) -> Result<(), Error> {
     node_map.insert(node.index(), entity_index);
 
     // Load node name.

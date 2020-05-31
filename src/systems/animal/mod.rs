@@ -14,14 +14,13 @@ use serde::{Deserialize, Serialize};
 
 pub use bounce::BounceSystem;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
-use redirect::RedirectItem as GenericRedirectItem;
 pub use track::TrackSystem;
+
+use crate::scene::RedirectField;
 
 pub mod bounce;
 pub mod locomotion;
 pub mod track;
-
-type RedirectItem = GenericRedirectItem<String, usize>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Tracker {
@@ -37,7 +36,7 @@ impl Component for Tracker {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackerPrefab {
-    pub target: RedirectItem,
+    pub target: RedirectField,
     pub limit: Option<f32>,
     pub speed: f32,
 }
@@ -53,9 +52,8 @@ impl<'a> PrefabData<'a> for TrackerPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let target = self.target.clone().unwrap();
         let component = Tracker {
-            target: entities[target],
+            target: self.target.clone().into_entity(entities),
             limit: self.limit.clone(),
             speed: self.speed,
             rotation: None,
@@ -146,10 +144,10 @@ impl Component for Quadruped {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuadrupedPrefab {
-    pub feet: Vec<RedirectItem>,
-    pub anchors: Vec<RedirectItem>,
-    pub roots: Vec<RedirectItem>,
-    pub root: RedirectItem,
+    pub feet: Vec<RedirectField>,
+    pub anchors: Vec<RedirectField>,
+    pub roots: Vec<RedirectField>,
+    pub root: RedirectField,
 
     #[serde(flatten)]
     pub config: Config,
@@ -175,37 +173,33 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             .collect_vec();
         let limbs = multizip((&self.feet, &self.anchors, &self.roots, signals))
             .map(|(foot, anchor, root, signal)| {
-                let (foot, anchor, root) = multizip((foot.iter(), anchor.iter(), root.iter()))
-                    .collect_vec()
-                    .first()
-                    .unwrap()
-                    .clone();
-                (foot, anchor, root, signal)
-            })
-            .map(|(foot, anchor, root, signal)| Limb {
-                foot: entities[foot],
-                anchor: entities[anchor],
-                root: entities[root],
-                state: State::Stance,
-                home: None,
-                origin: None,
+                Limb {
+                    foot: foot.clone().into_entity(entities),
+                    anchor: anchor.clone().into_entity(entities),
+                    root: root.clone().into_entity(entities),
+                    state: State::Stance,
+                    home: None,
+                    origin: None,
 
-                radius: 0.0,
-                angular_velocity: 0.0,
-                threshold: 0.0,
-                duty_factor: 0.0,
+                    radius: 0.0,
+                    angular_velocity: 0.0,
+                    threshold: 0.0,
+                    duty_factor: 0.0,
 
-                config: self.config.clone(),
+                    config: self.config.clone(),
 
-                signal,
-                transition: false,
+                    signal,
+                    transition: false,
+                }
             })
             .collect_vec()
             .as_slice()
             .try_into()
             .unwrap();
-        let root = self.root.clone().unwrap();
-        let component = Quadruped { limbs, root: entities[root] };
+        let component = Quadruped {
+            limbs,
+            root: self.root.clone().into_entity(entities),
+        };
 
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

@@ -10,7 +10,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use amethyst_gltf::{GltfPrefab, GltfSceneAsset, GltfSceneFormat, GltfSceneLoaderSystemDesc};
-use redirect::{Redirect, RedirectItem as GenericRedirectItem};
+use redirect::{Redirect, RedirectField as GenericRedirectField};
 
 use crate::systems::{
     animal::{QuadrupedPrefab, TrackerPrefab},
@@ -19,7 +19,22 @@ use crate::systems::{
 };
 use crate::systems::kinematics::{DirectionPrefab, PolePrefab};
 
-type RedirectItem = GenericRedirectItem<String, usize>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedirectField(GenericRedirectField<String, usize>);
+
+impl Redirect<String, usize> for RedirectField {
+    fn redirect<F>(self, map: &F) -> Self
+        where F: Fn(String) -> usize {
+        RedirectField(self.0.redirect(map))
+    }
+}
+
+impl RedirectField {
+    pub fn into_entity(self, entities: &[Entity]) -> Entity {
+        let index = self.0.unwrap();
+        entities[index]
+    }
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PrefabData)]
 #[serde(default)]
@@ -36,7 +51,7 @@ pub struct Extras {
 impl Redirect<String, usize> for QuadrupedPrefab {
     fn redirect<F>(self, map: &F) -> Self
         where F: Fn(String) -> usize {
-        let map = |item: RedirectItem| item.redirect(map);
+        let map = |item: RedirectField| item.redirect(map);
 
         let anchors = self.anchors.into_iter().map(map).collect_vec();
         let pivots = self.roots.into_iter().map(map).collect_vec();
