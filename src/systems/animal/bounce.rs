@@ -6,7 +6,7 @@ use amethyst::{
 };
 use num_traits::Zero;
 
-use crate::utils::{match_shape, transform::Helper};
+use crate::utils::{match_shape, transform::TransformsExt};
 
 use super::{Quadruped, State};
 

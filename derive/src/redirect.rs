@@ -1,13 +1,16 @@
 use proc_macro2::{Literal, Span, TokenStream};
-use proc_macro_roids::FieldExt;
+use proc_macro_roids::{FieldExt, contains_tag};
 use quote::quote;
-use syn::{Data, DataStruct, DataEnum, DeriveInput, Generics, Ident, parse_quote};
+use syn::{Data, DataStruct, DataEnum, DeriveInput, Generics, Ident, parse_quote, Fields, Path};
 
 pub fn impl_redirect(ast: &DeriveInput) -> TokenStream {
+    let namespace = parse_quote!(redirect);
+    let tag = parse_quote!(skip);
+
     let base = &ast.ident;
     let implement = match &ast.data {
-        Data::Struct(ref data) => redirect_struct(base, data),
-        Data::Enum(ref data) => redirect_enum(base, data),
+        Data::Struct(ref data) => redirect_struct(base, data, &namespace, &tag),
+        Data::Enum(ref data) => redirect_enum(base, data, &namespace, &tag),
         _ => panic!("Redirect derive only supports structs and enums"),
     };
 
@@ -24,47 +27,89 @@ pub fn impl_redirect(ast: &DeriveInput) -> TokenStream {
     }
 }
 
-fn redirect_struct(base: &Ident, data: &DataStruct) -> TokenStream {
-    let ref namespace = parse_quote!(redirect);
-    let ref tag = parse_quote!(skip);
+fn redirect_struct(
+    base: &Ident,
+    data: &DataStruct,
+    namespace: &Path,
+    tag: &Path,
+) -> TokenStream {
+    let extract = extract_fields(base, &data.fields, namespace, tag);
+    let fields = redirect_fields(&data.fields, namespace, tag);
+    quote! { #extract #base { #(#fields),*, ..self } }
+}
 
-    let fields = data.fields
+fn redirect_enum(
+    base: &Ident,
+    data: &DataEnum,
+    namespace: &Path,
+    tag: &Path,
+) -> TokenStream {
+    let variants = data.variants
         .iter()
-        .filter(|field| !field.contains_tag(namespace, tag))
+        .filter(|variant| !contains_tag(variant.attrs.as_slice(), namespace, tag))
+        .map(|variant| {
+            let variant_name = &variant.ident;
+            let field_names = field_names(&variant.fields, namespace, tag);
+            let fields = redirect_fields(&variant.fields, namespace, tag);
+            quote! { #(#base::#variant_name ( #field_names ) => #base::#variant_name { #fields }),* }
+        });
+
+    if variants.clone().count() < data.variants.len() {
+        quote! { match self { #(#variants),*, _ => self } }
+    } else {
+        quote! { match self { #(#variants),* } }
+    }.into()
+}
+
+fn extract_fields(
+    base: &Ident,
+    fields: &Fields,
+    namespace: &Path,
+    tag: &Path,
+) -> TokenStream {
+    let field_names = field_names(fields, namespace, tag);
+    if field_names.clone().count() < fields.len() {
+        quote! { let #base { #(#field_names),*, .. } = self; }
+    } else {
+        quote! { let #base { #(#field_names),* } = self; }
+    }.into()
+}
+
+fn redirect_fields<'a>(
+    fields: &'a Fields,
+    namespace: &'a Path,
+    tag: &'a Path,
+) -> impl Iterator<Item=TokenStream> + Clone + 'a {
+    fields
+        .iter()
+        .filter(move |field| !field.contains_tag(namespace, tag))
         .enumerate()
         .map(|(field_number, field)| match &field.ident {
             None => {
                 let var_name = Ident::new(&format!("field_{}", field_number), Span::call_site());
                 let number = Literal::usize_unsuffixed(field_number);
-                quote! { #number: self.#var_name.redirect(map) }
+                quote! { #number: #var_name.redirect(map) }
             }
-            Some(name) => quote! { #name: self.#name.redirect(map) },
-        });
-
-    quote! { #base { #(#fields),*, .. self } }
+            Some(name) => quote! { #name: #name.redirect(map) },
+        })
 }
 
-fn redirect_enum(_base: &Ident, _data: &DataEnum) -> TokenStream {
-    /*
-    let ref namespace = parse_quote!(redirect);
-    let ref tag = parse_quote!(skip);
-    for ref variant in data.variants {
-        let fields = variant.fields
-            .iter()
-            .filter(|field| !field.contains_tag(namespace, tag))
-            .enumerate()
-            .map(|(field_number, field)| match &field.ident {
-                None => {
-                    let var_name = Ident::new(&format!("field_{}", field_number), Span::call_site());
-                    let number = Literal::usize_unsuffixed(field_number);
-                    quote! { #number: self.#var_name.redirect(map) }
-                }
-                Some(name) => quote! { #name: self.#name.redirect(map) },
-            });
-    }
-     */
-
-    unimplemented!();
+fn field_names<'a>(
+    fields: &'a Fields,
+    namespace: &'a Path,
+    tag: &'a Path,
+) -> impl Iterator<Item=TokenStream> + Clone + 'a {
+    fields
+        .iter()
+        .filter(move |field| !field.contains_tag(namespace, tag))
+        .enumerate()
+        .map(|(field_number, field)| match &field.ident {
+            None => {
+                let var_name = Ident::new(&format!("field_{}", field_number), Span::call_site());
+                quote! { #var_name }
+            }
+            Some(name) => quote! { #name },
+        })
 }
 
 fn gen_def_lt_tokens(generics: &Generics) -> TokenStream {

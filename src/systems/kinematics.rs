@@ -25,7 +25,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::transform::Helper,
+    utils::transform::TransformsExt,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -140,10 +140,11 @@ impl<'a> PrefabData<'a> for PolePrefab {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PrefabData)]
+#[derive(Debug, Clone, Serialize, Deserialize, PrefabData, Redirect)]
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
     Direction(DirectionPrefab),
+    #[redirect(skip)]
     Hinge(Hinge),
     Pole(PolePrefab),
 }

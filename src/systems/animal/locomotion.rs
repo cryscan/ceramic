@@ -14,7 +14,7 @@ use num_traits::Zero;
 
 use crate::{
     systems::player::Player,
-    utils::transform::Helper,
+    utils::transform::TransformsExt,
 };
 
 use super::{Quadruped, State};

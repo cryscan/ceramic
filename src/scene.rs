@@ -60,17 +60,6 @@ pub struct Extras {
     control_tag: Option<ControlTagPrefab>,
 }
 
-impl Redirect<String, usize> for ConstrainPrefab {
-    fn redirect<F>(self, map: &F) -> Self
-        where F: Fn(String) -> usize {
-        match self {
-            ConstrainPrefab::Direction(direction) => ConstrainPrefab::Direction(direction.redirect(map)),
-            ConstrainPrefab::Pole(pole) => ConstrainPrefab::Pole(pole.redirect(map)),
-            _ => self,
-        }
-    }
-}
-
 pub type ScenePrefab = GltfPrefab<Extras>;
 pub type SceneAsset = GltfSceneAsset<Extras>;
 pub type SceneLoaderSystemDesc = GltfSceneLoaderSystemDesc<Extras>;

@@ -3,13 +3,13 @@ use amethyst::{
     ecs::prelude::*,
 };
 
-pub trait Helper {
+pub trait TransformsExt {
     fn global_transform(&self, entity: Entity) -> &Matrix4<f32>;
     fn global_position(&self, entity: Entity) -> Point3<f32>;
     fn local_transform(&self, entity: Entity) -> Matrix4<f32>;
 }
 
-impl Helper for WriteStorage<'_, Transform> {
+impl TransformsExt for WriteStorage<'_, Transform> {
     #[inline]
     fn global_transform(&self, entity: Entity) -> &Matrix4<f32> {
         self
