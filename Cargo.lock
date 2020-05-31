@@ -644,6 +644,7 @@ dependencies = [
  "amethyst_gltf",
  "amethyst_nphysics",
  "amethyst_physics",
+ "ceramic_derive",
  "easer",
  "getset 0.1.1",
  "interpolation",
@@ -652,6 +653,16 @@ dependencies = [
  "rand 0.7.3",
  "redirect",
  "serde",
+]
+
+[[package]]
+name = "ceramic_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "proc_macro_roids",
+ "quote 1.0.3",
+ "syn 1.0.18",
 ]
 
 [[package]]

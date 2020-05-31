@@ -13,7 +13,9 @@ use itertools::{Itertools, multizip};
 use serde::{Deserialize, Serialize};
 
 pub use bounce::BounceSystem;
+use ceramic_derive::Redirect;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
+use redirect::Redirect;
 pub use track::TrackSystem;
 
 use crate::scene::RedirectField;
@@ -34,10 +36,12 @@ impl Component for Tracker {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
 pub struct TrackerPrefab {
     pub target: RedirectField,
+    #[redirect(skip)]
     pub limit: Option<f32>,
+    #[redirect(skip)]
     pub speed: f32,
 }
 
@@ -142,7 +146,7 @@ impl Component for Quadruped {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
 pub struct QuadrupedPrefab {
     pub feet: Vec<RedirectField>,
     pub anchors: Vec<RedirectField>,
@@ -150,6 +154,7 @@ pub struct QuadrupedPrefab {
     pub root: RedirectField,
 
     #[serde(flatten)]
+    #[redirect(skip)]
     pub config: Config,
 }
 

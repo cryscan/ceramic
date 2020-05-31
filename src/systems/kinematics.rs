@@ -20,6 +20,9 @@ use amethyst::prelude::SystemDesc;
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
+use ceramic_derive::Redirect;
+use redirect::Redirect;
+
 use crate::{
     scene::RedirectField,
     utils::transform::Helper,
@@ -35,9 +38,10 @@ impl Component for Chain {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
 pub struct ChainPrefab {
     pub target: RedirectField,
+    #[redirect(skip)]
     pub length: usize,
 }
 
@@ -70,7 +74,7 @@ impl Component for Direction {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
 pub struct DirectionPrefab {
     pub target: RedirectField,
 }
@@ -115,7 +119,7 @@ impl Component for Pole {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
 pub struct PolePrefab {
     pub target: RedirectField,
 }

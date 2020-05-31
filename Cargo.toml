@@ -21,6 +21,7 @@ rand = "0.7.3"
 easer = "0.2.1"
 interpolation = "0.2.0"
 redirect = { path = "redirect" }
+ceramic_derive = { path = "derive" }
 
 [dependencies.amethyst]
 version = "0.15.0"
