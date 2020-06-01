@@ -9,7 +9,8 @@ use amethyst::{
         transform::{Parent, Transform, TransformSystemDesc},
     },
     derive::{PrefabData, SystemDesc},
-    ecs::{AccessorCow, BatchAccessor, BatchController, BatchUncheckedWorld, Dispatcher, prelude::*, RunningTime},
+    ecs::{
+        AccessorCow, BatchAccessor, BatchController, BatchUncheckedWorld, Component, Dispatcher, prelude::*, RunningTime},
     error::Error,
     renderer::{
         debug_drawing::DebugLines,
@@ -17,6 +18,7 @@ use amethyst::{
     },
 };
 use amethyst::prelude::SystemDesc;
+use getset::CopyGetters;
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 
@@ -25,17 +27,14 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::transform::TransformsExt,
+    utils::transform::TransformStorageExt,
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
 pub struct Chain {
     target: Entity,
     length: usize,
-}
-
-impl Component for Chain {
-    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
@@ -64,14 +63,11 @@ impl<'a> PrefabData<'a> for ChainPrefab {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
 pub struct Direction {
     target: Entity,
     rotation: Option<UnitQuaternion<f32>>,
-}
-
-impl Component for Direction {
-    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
@@ -110,13 +106,10 @@ impl Component for Hinge {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
 pub struct Pole {
     target: Entity,
-}
-
-impl Component for Pole {
-    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
@@ -143,10 +136,10 @@ impl<'a> PrefabData<'a> for PolePrefab {
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData, Redirect)]
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
-    Direction(DirectionPrefab),
     #[redirect(skip)]
     Hinge(Hinge),
     Pole(PolePrefab),
+    Direction(DirectionPrefab),
 }
 
 #[derive(Default, SystemDesc)]
@@ -178,6 +171,7 @@ impl<'a> System<'a> for KinematicsSystem {
             mut debug_lines,
         ) = data;
 
+        // Solve inverse kinematics constrains.
         for (entity, chain) in (&*entities, &chains).join() {
             let entities = iterate(
                 entity,
@@ -328,7 +322,8 @@ impl<'a> System<'a> for KinematicsSystem {
             }
         }
 
-        for (entity, direction, _) in (&*entities, &mut directions, &chains).join() {
+        // Solve direction constrains.
+        for (entity, direction) in (&*entities, &mut directions).join() {
             if direction.rotation.is_none() {
                 let transform_vector = |ref vector| {
                     let ref global = transforms
@@ -366,9 +361,11 @@ impl<'a> System<'a> for KinematicsSystem {
     }
 }
 
+#[derive(Debug, Copy, Clone, CopyGetters)]
+#[get_copy = "pub"]
 pub struct Config {
-    pub iter: usize,
-    pub eps: f32,
+    iter: usize,
+    eps: f32,
 }
 
 pub struct KinematicsBatchSystem<'a, 'b> {

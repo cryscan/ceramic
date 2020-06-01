@@ -18,21 +18,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Getters, CopyGetters, Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
+#[get_copy = "pub"]
 pub struct Player {
-    #[get_copy = "pub"]
     linear_speed: f32,
-    #[get_copy = "pub"]
     angular_speed: f32,
-    stiffness: f32,
 
+    stiffness: f32,
     speed_limit: [f32; 2],
     acceleration: f32,
 
     #[serde(skip, default = "Vector3::zero")]
-    #[get = "pub"]
     translation: Vector3<f32>,
     #[serde(skip, default = "UnitQuaternion::identity")]
-    #[get = "pub"]
     rotation: UnitQuaternion<f32>,
 }
 

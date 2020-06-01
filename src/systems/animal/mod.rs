@@ -1,12 +1,13 @@
 use std::{
     convert::TryInto,
-    f32::consts::{FRAC_PI_4, PI, TAU},
+    f32::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU},
+    ops::Deref,
 };
 
 use amethyst::{
     assets::PrefabData,
-    core::math::{Complex, Point3, UnitQuaternion},
-    ecs::prelude::*,
+    core::{math::{Complex, Point3, UnitQuaternion, Vector3}, Transform},
+    ecs::{Component, prelude::*, storage::MaskedStorage},
     error::Error,
 };
 use itertools::{Itertools, multizip};
@@ -18,22 +19,21 @@ pub use locomotion::{LocomotionSystem, OscillatorSystem};
 use redirect::Redirect;
 pub use track::TrackSystem;
 
-use crate::scene::RedirectField;
+use crate::{scene::RedirectField, utils::transform::TransformStorageExt};
+
+use super::player::Player;
 
 pub mod bounce;
 pub mod locomotion;
 pub mod track;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
 pub struct Tracker {
     target: Entity,
     limit: Option<f32>,
     speed: f32,
     rotation: Option<UnitQuaternion<f32>>,
-}
-
-impl Component for Tracker {
-    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
@@ -89,12 +89,10 @@ pub struct Limb {
     foot: Entity,
     anchor: Entity,
     root: Entity,
-    state: State,
-    /// The home position of foot related to root.
-    home: Option<Point3<f32>>,
-    /// The original position of the anchor related to root.
-    origin: Option<Point3<f32>>,
+    origin: Entity,
+    home: Entity,
 
+    state: State,
     radius: f32,
     angular_velocity: f32,
     /// The minimum angular velocity whose flight time is greater than `flight_time`.
@@ -136,14 +134,11 @@ impl Limb {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
 pub struct Quadruped {
     limbs: [Limb; 4],
     root: Entity,
-}
-
-impl Component for Quadruped {
-    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
@@ -151,6 +146,8 @@ pub struct QuadrupedPrefab {
     pub feet: Vec<RedirectField>,
     pub anchors: Vec<RedirectField>,
     pub roots: Vec<RedirectField>,
+    pub origins: Vec<RedirectField>,
+    pub homes: Vec<RedirectField>,
     pub root: RedirectField,
 
     #[serde(flatten)]
@@ -169,23 +166,32 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let signals = (0..self.feet.len())
-            .map(|i| {
+        let signals = [0.0, FRAC_PI_4, FRAC_PI_2, 3.0 * FRAC_PI_4]
+            .iter()
+            .map(|angle| {
                 let ref radius = 1.0;
-                let ref angle = (i as f32) * FRAC_PI_4;
                 Complex::from_polar(radius, angle)
             })
             .collect_vec();
-        let limbs = multizip((&self.feet, &self.anchors, &self.roots, signals))
-            .map(|(foot, anchor, root, signal)| {
+        let limbs = multizip((&self.feet, &self.anchors, &self.roots, &self.origins, &self.homes, signals))
+            .map(|fields| {
+                let (
+                    foot,
+                    anchor,
+                    root,
+                    origin,
+                    home,
+                    signal,
+                ) = fields;
+
                 Limb {
                     foot: foot.clone().into_entity(entities),
                     anchor: anchor.clone().into_entity(entities),
                     root: root.clone().into_entity(entities),
-                    state: State::Stance,
-                    home: None,
-                    origin: None,
+                    origin: origin.clone().into_entity(entities),
+                    home: home.clone().into_entity(entities),
 
+                    state: State::Stance,
                     radius: 0.0,
                     angular_velocity: 0.0,
                     threshold: 0.0,
@@ -201,11 +207,32 @@ impl<'a> PrefabData<'a> for QuadrupedPrefab {
             .as_slice()
             .try_into()
             .unwrap();
+
         let component = Quadruped {
             limbs,
             root: self.root.clone().into_entity(entities),
         };
-
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
+}
+
+#[inline]
+fn limb_velocity<D>(
+    transforms: &Storage<'_, Transform, D>,
+    entity: Entity,
+    limb: &Limb,
+    player: &Player,
+) -> Vector3<f32>
+    where D: Deref<Target=MaskedStorage<Transform>> {
+    let ref home = transforms.global_position(limb.home);
+    let root = transforms.global_position(entity);
+
+    let ref radial = home - root;
+    let ref angular = player.rotation().scaled_axis();
+    let ref linear = player.velocity();
+
+    let transform = transforms.global_transform(entity);
+    let angular = transform.transform_vector(angular);
+    let linear = transform.transform_vector(linear);
+    linear + angular.cross(radial)
 }
