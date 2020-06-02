@@ -133,7 +133,7 @@ fn load_scene<'a, T: Extra<'a>>(
     let mut bounding_box = GltfNodeExtent::default();
     let mut material_set = GltfMaterialSet::default();
     for node in scene.nodes() {
-        let index = prefab.add(Some(0), None);
+        let index = prefab.add(None, None);
         load_node(
             gltf,
             &node,

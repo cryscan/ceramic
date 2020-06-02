@@ -22,6 +22,7 @@ use crate::{
     systems::{
         animal::{BounceSystem, LocomotionSystem, OscillatorSystem, TrackSystem},
         kinematics::KinematicsBundle,
+        particle::ParticleSystem,
         player::PlayerSystem,
     },
 };
@@ -61,6 +62,7 @@ fn main() -> amethyst::Result<()> {
             PhysicsBundle::<f32, NPhysicsBackend>::new()
                 .with_frames_per_seconds(60)
                 .with_in_physics(OscillatorSystem::default(), "oscillator".into(), vec![])
+                .with_in_physics(ParticleSystem::default(), "particle".into(), vec![])
         )?
         .with_system_desc(SceneLoaderSystemDesc::default(), "gltf_loader", &[])
         .with(PlayerSystem::default(), "player", &[])

@@ -63,37 +63,6 @@ impl<'a> PrefabData<'a> for ChainPrefab {
     }
 }
 
-#[derive(Debug, Copy, Clone, Component)]
-#[storage(DenseVecStorage)]
-pub struct Direction {
-    target: Entity,
-    rotation: Option<UnitQuaternion<f32>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
-pub struct DirectionPrefab {
-    pub target: RedirectField,
-}
-
-impl<'a> PrefabData<'a> for DirectionPrefab {
-    type SystemData = WriteStorage<'a, Direction>;
-    type Result = ();
-
-    fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
-    ) -> Result<Self::Result, Error> {
-        let component = Direction {
-            target: self.target.clone().into_entity(entities),
-            rotation: None,
-        };
-        data.insert(entity, component).map(|_| ()).map_err(Into::into)
-    }
-}
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PrefabData)]
 #[prefab(Component)]
 pub struct Hinge {
@@ -133,6 +102,71 @@ impl<'a> PrefabData<'a> for PolePrefab {
     }
 }
 
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
+pub struct Direction {
+    target: Entity,
+    rotation: Option<UnitQuaternion<f32>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
+pub struct DirectionPrefab {
+    pub target: RedirectField,
+}
+
+impl<'a> PrefabData<'a> for DirectionPrefab {
+    type SystemData = WriteStorage<'a, Direction>;
+    type Result = ();
+
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let component = Direction {
+            target: self.target.clone().into_entity(entities),
+            rotation: None,
+        };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
+pub struct Distance {
+    target: Entity,
+    distance: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
+pub struct DistancePrefab {
+    pub target: RedirectField,
+    #[redirect(skip)]
+    #[serde(default)]
+    pub distance: f32,
+}
+
+impl<'a> PrefabData<'a> for DistancePrefab {
+    type SystemData = WriteStorage<'a, Distance>;
+    type Result = ();
+
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let component = Distance {
+            target: self.target.clone().into_entity(entities),
+            distance: self.distance,
+        };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PrefabData, Redirect)]
 #[serde(deny_unknown_fields)]
 pub enum ConstrainPrefab {
@@ -140,6 +174,7 @@ pub enum ConstrainPrefab {
     Hinge(Hinge),
     Pole(PolePrefab),
     Direction(DirectionPrefab),
+    Distance(DistancePrefab),
 }
 
 #[derive(Default, SystemDesc)]
@@ -151,9 +186,9 @@ impl<'a> System<'a> for KinematicsSystem {
         ReadStorage<'a, Parent>,
         WriteStorage<'a, Transform>,
         ReadStorage<'a, Chain>,
-        WriteStorage<'a, Direction>,
         WriteStorage<'a, Hinge>,
         ReadStorage<'a, Pole>,
+        WriteStorage<'a, Direction>,
         ReadExpect<'a, Config>,
         Write<'a, DebugLines>,
     );
@@ -164,9 +199,9 @@ impl<'a> System<'a> for KinematicsSystem {
             parents,
             mut transforms,
             chains,
-            mut directions,
             mut hinges,
             poles,
+            mut directions,
             config,
             mut debug_lines,
         ) = data;

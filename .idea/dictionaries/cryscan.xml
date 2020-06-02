@@ -2,6 +2,7 @@
   <dictionary name="cryscan">
     <words>
       <w>gltf</w>
+      <w>verlet</w>
     </words>
   </dictionary>
 </component>

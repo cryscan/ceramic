@@ -15,6 +15,7 @@ use redirect::Redirect;
 use crate::systems::{
     animal::{QuadrupedPrefab, TrackerPrefab},
     kinematics::{ChainPrefab, ConstrainPrefab},
+    particle::{ParticlePrefab, SpringPrefab},
     player::Player,
 };
 
@@ -54,6 +55,9 @@ pub struct Extras {
     tracker: Option<TrackerPrefab>,
     chain: Option<ChainPrefab>,
     constrain: Option<ConstrainPrefab>,
+    #[redirect(skip)]
+    particle: Option<ParticlePrefab>,
+    spring: Option<SpringPrefab>,
     #[redirect(skip)]
     auto_fov: Option<AutoFov>,
     #[redirect(skip)]
