@@ -1,6 +1,6 @@
 use amethyst::{
     assets::PrefabData,
-    core::{math::Point3, Transform},
+    core::{math::Point3, Parent, Transform},
     derive::SystemDesc,
     ecs::{Component, prelude::*},
     error::Error,
@@ -13,7 +13,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::transform::TransformStorageExt,
+    utils::{match_shape, transform::TransformStorageExt},
 };
 
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
@@ -62,6 +62,7 @@ pub struct Deform {
     vertices: Vec<Entity>,
     stiffness: f32,
     damp: f32,
+    free: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Redirect)]
@@ -73,6 +74,8 @@ pub struct DeformPrefab {
     pub stiffness: f32,
     #[redirect(skip)]
     pub damp: f32,
+    #[redirect(skip)]
+    pub free: bool,
 }
 
 impl<'a> PrefabData<'a> for DeformPrefab {
@@ -99,6 +102,7 @@ impl<'a> PrefabData<'a> for DeformPrefab {
             vertices,
             stiffness: self.stiffness,
             damp: self.damp,
+            free: self.free,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }
@@ -110,6 +114,7 @@ pub struct ParticleSystem;
 impl<'a> System<'a> for ParticleSystem {
     type SystemData = (
         Entities<'a>,
+        ReadStorage<'a, Parent>,
         ReadStorage<'a, Transform>,
         ReadStorage<'a, Deform>,
         ReadStorage<'a, PhysicsHandle<PhysicsRigidBodyTag>>,
@@ -117,46 +122,48 @@ impl<'a> System<'a> for ParticleSystem {
         ReadExpect<'a, PhysicsTime>,
     );
 
-    fn run(&mut self, (entities, transforms, deforms, bodies, physics_world, time): Self::SystemData) {
-        for (_entity, deform) in (&*entities, &deforms).join() {
-            // Targets matches rigid bodies.
-            /*
-            let origins = deform.targets
+    fn run(&mut self, (entities, parents, transforms, deforms, bodies, physics_world, time): Self::SystemData) {
+        for (entity, deform) in (&*entities, &deforms).join() {
+            if deform.targets
                 .iter()
-                .map(|entity| transforms.global_position(*entity))
-                .fold(vec![], |mut vector, point| {
-                    vector.append(&mut vec![point.x, point.y, point.z]);
-                    vector
-                });
-            let targets = deform.vertices
-                .iter()
-                .map(|entity| transforms.global_position(*entity))
-                .fold(vec![], |mut vector, point| {
-                    {
-                        let color = Srgba::new(1.0, 0.0, 0.0, 1.0);
-                        debug_lines.draw_sphere(point.clone(), 0.6, 4, 4, color);
-                    }
-                    vector.append(&mut vec![point.x, point.y, point.z]);
-                    vector
-                });
-            let (translation, rotation) = match_shape(origins, targets, 0.01, 10);
-            let targets: Vec<_> = deform.targets
-                .iter()
-                .map(|entity| transforms.global_position(*entity))
-                .map(|ref point| rotation.transform_point(point))
-                .map(|point| point + translation)
-                .map(|point| {
-                    let color = Srgba::new(0.0, 0.0, 1.0, 1.0);
-                    debug_lines.draw_sphere(point.clone(), 0.6, 4, 4, color);
-                    point
-                })
-                .collect();
+                .any(|child| parents
+                    .get(*child)
+                    .map(|parent| parent.entity != entity)
+                    .unwrap_or(true)
+                ) { continue; }
 
-             */
+            // Targets matches rigid bodies.
+            let targets: Vec<_> = if parents.get(entity).is_none() {
+                let origins = deform.targets
+                    .iter()
+                    .map(|entity| transforms.global_position(*entity))
+                    .fold(vec![], |mut vector, point| {
+                        vector.append(&mut vec![point.x, point.y, point.z]);
+                        vector
+                    });
+                let targets = deform.vertices
+                    .iter()
+                    .map(|entity| transforms.global_position(*entity))
+                    .fold(vec![], |mut vector, point| {
+                        vector.append(&mut vec![point.x, point.y, point.z]);
+                        vector
+                    });
+                let (translation, rotation) = match_shape(origins, targets, 0.01, 10);
+                deform.targets
+                    .iter()
+                    .map(|entity| transforms.global_position(*entity))
+                    .map(|ref point| rotation.transform_point(point))
+                    .map(|point| point + translation)
+                    .collect()
+            } else {
+                deform.targets
+                    .iter()
+                    .map(|entity| transforms.global_position(*entity))
+                    .collect()
+            };
 
             // Rigid bodies matches targets.
-            for (target, vertex) in deform.targets.iter().zip(deform.vertices.iter()) {
-                let target = transforms.global_position(*target);
+            for (target, vertex) in targets.iter().zip(deform.vertices.iter()) {
                 if let Some(body) = bodies.get(*vertex) {
                     let position = Point3::from(
                         physics_world

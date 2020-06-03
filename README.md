@@ -1,7 +1,7 @@
 # Ceramic
 Procedure animation written in Rust using [Amethyst Engine](https://amethyst.rs/).
 
-[![Watch the video](docs/Screencast.png)](https://streamable.com/e01fl3)
+[![Watch the video](docs/Screencast.png)](https://streamable.com/pmh68o)
 
 ## Compile and Run
 To compile, use the following command:
