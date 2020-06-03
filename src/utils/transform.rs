@@ -22,9 +22,10 @@ impl<D> TransformStorageExt for Storage<'_, Transform, D>
     }
 
     fn global_position(&self, entity: Entity) -> Point3<f32> {
+        let ref origin = Point3::origin();
         self
             .global_transform(entity)
-            .transform_point(&Point3::origin())
+            .transform_point(origin)
     }
 
     #[inline]
