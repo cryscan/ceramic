@@ -9,7 +9,7 @@ use num_traits::Zero;
 
 use crate::{
     systems::player::Player,
-    utils::{match_shape, transform::TransformStorageExt},
+    utils::{match_shape, transform::TransformStorageTrait},
 };
 
 use super::{limb_velocity, Quadruped, State};

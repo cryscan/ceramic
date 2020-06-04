@@ -27,7 +27,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::transform::TransformStorageExt,
+    utils::transform::TransformStorageTrait,
 };
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -232,7 +232,7 @@ impl<'a> System<'a> for KinematicsSystem {
             let ref target = transforms.global_position(chain.target);
             let mut target = transforms.local_transform(entity).transform_point(target);
 
-            let distance = (&end - &target).norm();
+            let distance = target.coords.norm();
             if distance < config.eps { continue; }
 
             // Direction of entity is the rotation of its parent.

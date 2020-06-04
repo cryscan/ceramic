@@ -13,7 +13,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::{match_shape, transform::TransformStorageExt},
+    utils::{match_shape, transform::TransformStorageTrait},
 };
 
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
@@ -32,16 +32,11 @@ impl<'a> PrefabData<'a> for ParticlePrefab {
     fn add_to_entity(
         &self,
         entity: Entity,
-        data: &mut Self::SystemData,
+        (physics_world, bodies): &mut Self::SystemData,
         _: &[Entity],
         _: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let (
-            physics_world,
-            rigid_bodies
-        ) = data;
-
-        let rigid_body = {
+        let body = {
             let ref desc = RigidBodyDesc {
                 mode: BodyMode::Dynamic,
                 mass: self.mass,
@@ -49,7 +44,7 @@ impl<'a> PrefabData<'a> for ParticlePrefab {
             };
             physics_world.rigid_body_server().create(desc)
         };
-        rigid_bodies.insert(entity, rigid_body)?;
+        bodies.insert(entity, body)?;
 
         Ok(())
     }
@@ -62,7 +57,6 @@ pub struct Deform {
     vertices: Vec<Entity>,
     stiffness: f32,
     damp: f32,
-    free: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Redirect)]
@@ -74,8 +68,6 @@ pub struct DeformPrefab {
     pub stiffness: f32,
     #[redirect(skip)]
     pub damp: f32,
-    #[redirect(skip)]
-    pub free: bool,
 }
 
 impl<'a> PrefabData<'a> for DeformPrefab {
@@ -102,7 +94,6 @@ impl<'a> PrefabData<'a> for DeformPrefab {
             vertices,
             stiffness: self.stiffness,
             damp: self.damp,
-            free: self.free,
         };
         data.insert(entity, component).map(|_| ()).map_err(Into::into)
     }

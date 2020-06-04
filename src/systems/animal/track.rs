@@ -6,7 +6,7 @@ use amethyst::{
     ecs::prelude::*,
 };
 
-use crate::utils::transform::TransformStorageExt;
+use crate::utils::transform::TransformStorageTrait;
 
 use super::Tracker;
 

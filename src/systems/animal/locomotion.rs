@@ -14,7 +14,7 @@ use num_traits::Zero;
 
 use crate::{
     systems::player::Player,
-    utils::transform::TransformStorageExt,
+    utils::transform::TransformStorageTrait,
 };
 
 use super::{limb_velocity, Quadruped, State};

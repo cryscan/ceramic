@@ -1,5 +1,5 @@
 # Ceramic
-Procedure animation written in Rust using [Amethyst Engine](https://amethyst.rs/).
+Procedural animation written in Rust using [Amethyst Engine](https://amethyst.rs/).
 
 [![Watch the video](docs/Screencast.png)](https://streamable.com/pmh68o)
 

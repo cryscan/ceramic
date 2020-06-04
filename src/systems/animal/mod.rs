@@ -19,7 +19,7 @@ pub use locomotion::{LocomotionSystem, OscillatorSystem};
 use redirect::Redirect;
 pub use track::TrackSystem;
 
-use crate::{scene::RedirectField, utils::transform::TransformStorageExt};
+use crate::{scene::RedirectField, utils::transform::TransformStorageTrait};
 
 use super::player::Player;
 
