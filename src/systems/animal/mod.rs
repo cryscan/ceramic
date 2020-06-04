@@ -19,7 +19,8 @@ pub use locomotion::{LocomotionSystem, OscillatorSystem};
 use redirect::Redirect;
 pub use track::TrackSystem;
 
-use crate::{scene::RedirectField, utils::transform::TransformStorageTrait};
+use crate::{scene::RedirectField};
+use crate::utils::transform::TransformTrait;
 
 use super::player::Player;
 
@@ -222,17 +223,17 @@ fn limb_velocity<D>(
     entity: Entity,
     limb: &Limb,
     player: &Player,
-) -> Vector3<f32>
+) -> Option<Vector3<f32>>
     where D: Deref<Target=MaskedStorage<Transform>> {
-    let ref home = transforms.global_position(limb.home);
-    let root = transforms.global_position(entity);
+    let ref home = transforms.get(limb.home)?.global_position();
+    let root = transforms.get(entity)?.global_position();
 
     let ref radial = home - root;
     let ref angular = player.rotation().scaled_axis();
     let ref linear = player.velocity();
 
-    let transform = transforms.global_transform(entity);
+    let transform = transforms.get(entity)?.global_matrix();
     let angular = transform.transform_vector(angular);
     let linear = transform.transform_vector(linear);
-    linear + angular.cross(radial)
+    Some(linear + angular.cross(radial))
 }

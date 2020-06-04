@@ -13,7 +13,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::{match_shape, transform::TransformStorageTrait},
+    utils::{match_shape, transform::TransformTrait},
 };
 
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
@@ -127,14 +127,20 @@ impl<'a> System<'a> for ParticleSystem {
             let targets: Vec<_> = if parents.get(entity).is_none() {
                 let origins = deform.targets
                     .iter()
-                    .map(|entity| transforms.global_position(*entity))
+                    .map(|entity| transforms
+                        .get(*entity)
+                        .map(|transform| transform.global_position()))
+                    .filter_map(|x| x)
                     .fold(vec![], |mut vector, point| {
                         vector.append(&mut vec![point.x, point.y, point.z]);
                         vector
                     });
                 let targets = deform.vertices
                     .iter()
-                    .map(|entity| transforms.global_position(*entity))
+                    .map(|entity| transforms
+                        .get(*entity)
+                        .map(|transform| transform.global_position()))
+                    .filter_map(|x| x)
                     .fold(vec![], |mut vector, point| {
                         vector.append(&mut vec![point.x, point.y, point.z]);
                         vector
@@ -142,14 +148,20 @@ impl<'a> System<'a> for ParticleSystem {
                 let (translation, rotation) = match_shape(origins, targets, 0.01, 10);
                 deform.targets
                     .iter()
-                    .map(|entity| transforms.global_position(*entity))
+                    .map(|entity| transforms
+                        .get(*entity)
+                        .map(|transform| transform.global_position()))
+                    .filter_map(|x| x)
                     .map(|ref point| rotation.transform_point(point))
                     .map(|point| point + translation)
                     .collect()
             } else {
                 deform.targets
                     .iter()
-                    .map(|entity| transforms.global_position(*entity))
+                    .map(|entity| transforms
+                        .get(*entity)
+                        .map(|transform| transform.global_position()))
+                    .filter_map(|x| x)
                     .collect()
             };
 

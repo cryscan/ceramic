@@ -14,13 +14,149 @@ use num_traits::Zero;
 
 use crate::{
     systems::player::Player,
-    utils::transform::TransformStorageTrait,
+    utils::transform::TransformTrait,
 };
+use crate::systems::animal::Limb;
 
 use super::{limb_velocity, Quadruped, State};
 
 #[derive(Default, SystemDesc)]
 pub struct LocomotionSystem;
+
+impl LocomotionSystem {
+    fn process_limb(
+        entity: Entity,
+        limb: &mut Limb,
+        player: &Player,
+        delta_seconds: f32,
+        transforms: &mut WriteStorage<'_, Transform>,
+        debug_lines: &mut Write<'_, DebugLines>,
+    ) -> Option<()> {
+        let ref home = transforms.get(limb.home)?.global_position();
+        let ref foot = transforms.get(limb.foot)?.global_position();
+        let ref root = transforms.get(limb.root)?.global_position();
+        let delta = foot - home;
+
+        let velocity = limb_velocity(&transforms, entity, limb, player)?;
+        let speed = velocity.norm();
+        limb.match_speed(speed);
+
+        let step_radius = limb.step_radius();
+        let flight_time = limb.flight_time();
+
+        {
+            let mut home = home.clone();
+            home.coords.y = limb.config.stance_height;
+
+            let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
+            debug_lines.draw_rotated_circle(
+                home.clone(),
+                step_radius,
+                10,
+                UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0),
+                color,
+            );
+
+            let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
+            debug_lines.draw_sphere(foot.clone(), 0.2, 4, 4, color);
+
+            let signal = limb.signal;
+            let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+            let ref direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
+            let direction = transforms
+                .get(limb.foot)?
+                .global_matrix()
+                .transform_vector(direction);
+            debug_lines.draw_direction(home, direction, color);
+        }
+
+        limb.state = match &limb.state {
+            State::Stance => {
+                let condition = {
+                    if limb.angular_velocity > limb.threshold {
+                        let transition = limb.transition;
+                        limb.transition = false;
+                        transition
+                    } else {
+                        delta.norm() > step_radius
+                    }
+                };
+                if condition {
+                    let stance = foot.clone();
+                    State::Flight { stance, time: 0.0 }
+                } else {
+                    State::Stance
+                }
+            }
+            State::Flight { stance, time } => {
+                let time = *time;
+
+                let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
+                let mut next = home.clone();
+                if limb.angular_velocity > limb.threshold {
+                    next += velocity * (flight_time - time) + direction * step_radius;
+                }
+                next.coords.y = limb.config.stance_height;
+
+                {
+                    let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
+                    debug_lines.draw_sphere(next.clone(), 0.1, 4, 4, color);
+                }
+
+                if time < flight_time {
+                    let ref stance = stance.coords;
+                    let ref next = next.coords;
+
+                    let direction = {
+                        let ref delta = root - foot;
+                        let direction = delta - direction.scale(direction.dot(delta));
+                        direction.try_normalize(EPSILON).unwrap_or(Vector3::zero())
+                    };
+                    let step_length = step_radius * 2.0;
+                    let height = limb.config.flight_factor * step_length;
+
+                    let factor = Sine::ease_in(time, 0.0, 1.0, flight_time);
+
+                    let translation = {
+                        let ref center = next.lerp(stance, 0.2) + direction * height;
+                        let ref first = stance.lerp(center, factor);
+                        let ref second = center.lerp(next, factor);
+                        first.lerp(second, factor)
+                    };
+
+                    let rotation = transforms
+                        .get(entity)?
+                        .rotation()
+                        .clone();
+
+                    let ref factor = Cubic::ease_in_out(time, 0.0, 1.0, flight_time);
+                    let angle = {
+                        let max_step_length = limb.config.step_limit[1];
+                        let ref center = FRAC_PI_2 * step_length / max_step_length;
+                        let ref first = 0.0.lerp(center, factor);
+                        let ref second = center.lerp(&0.0, factor);
+                        first.lerp(second, factor)
+                    };
+
+                    transforms
+                        .get_mut(limb.foot)?
+                        .set_translation(translation)
+                        .set_rotation(rotation)
+                        .append_rotation_x_axis(angle);
+
+                    State::Flight { stance: stance.xyz().into(), time: delta_seconds + time }
+                } else {
+                    transforms
+                        .get_mut(limb.foot)?
+                        .set_translation(next.coords);
+                    State::Stance
+                }
+            }
+        };
+
+        Some(())
+    }
+}
 
 impl<'a> System<'a> for LocomotionSystem {
     type SystemData = (
@@ -41,131 +177,16 @@ impl<'a> System<'a> for LocomotionSystem {
             time,
             mut debug_lines,
         ) = data;
-        let delta_seconds = time.delta_seconds();
-
         for (entity, quadruped, player) in (&*entities, &mut quadrupeds, &players).join() {
             for limb in quadruped.limbs.iter_mut() {
-                let ref home = transforms.global_position(limb.home);
-                let ref foot = transforms.global_position(limb.foot);
-                let ref root = transforms.global_position(limb.root);
-                let delta = foot - home;
-
-                let velocity = limb_velocity(&transforms, entity, limb, player);
-                let speed = velocity.norm();
-                limb.match_speed(speed);
-
-                let step_radius = limb.step_radius();
-                let flight_time = limb.flight_time();
-
-                {
-                    let mut home = home.clone();
-                    home.coords.y = limb.config.stance_height;
-
-                    let color = Srgba::new(0.0, 1.0, 0.0, limb.duty_factor);
-                    debug_lines.draw_rotated_circle(
-                        home.clone(),
-                        step_radius,
-                        10,
-                        UnitQuaternion::from_euler_angles(FRAC_PI_2, 0.0, 0.0),
-                        color,
-                    );
-
-                    let color = Srgba::new(1.0, 1.0, 0.0, 1.0);
-                    debug_lines.draw_sphere(foot.clone(), 0.2, 4, 4, color);
-
-                    let signal = limb.signal;
-                    let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                    let ref direction = Vector3::new(0.0, signal.im, -signal.re).scale(step_radius);
-                    let direction = transforms.global_transform(limb.foot).transform_vector(direction);
-                    debug_lines.draw_direction(home, direction, color);
-                }
-
-                limb.state = match &limb.state {
-                    State::Stance => {
-                        let condition = {
-                            if limb.angular_velocity > limb.threshold {
-                                let transition = limb.transition;
-                                limb.transition = false;
-                                transition
-                            } else {
-                                delta.norm() > step_radius
-                            }
-                        };
-                        if condition {
-                            let stance = foot.clone();
-                            State::Flight { stance, time: 0.0 }
-                        } else {
-                            State::Stance
-                        }
-                    }
-                    State::Flight { stance, time } => {
-                        let time = *time;
-
-                        let direction = velocity.try_normalize(EPSILON).unwrap_or(Vector3::zero());
-                        let mut next = home.clone();
-                        if limb.angular_velocity > limb.threshold {
-                            next += velocity * (flight_time - time) + direction * step_radius;
-                        }
-                        next.coords.y = limb.config.stance_height;
-
-                        {
-                            let color = Srgba::new(1.0, 1.0, 1.0, 1.0);
-                            debug_lines.draw_sphere(next.clone(), 0.1, 4, 4, color);
-                        }
-
-                        if time < flight_time {
-                            let ref stance = stance.coords;
-                            let ref next = next.coords;
-
-                            let direction = {
-                                let ref delta = root - foot;
-                                let direction = delta - direction.scale(direction.dot(delta));
-                                direction.try_normalize(EPSILON).unwrap_or(Vector3::zero())
-                            };
-                            let step_length = step_radius * 2.0;
-                            let height = limb.config.flight_factor * step_length;
-
-                            let factor = Sine::ease_in(time, 0.0, 1.0, flight_time);
-
-                            let translation = {
-                                let ref center = next.lerp(stance, 0.2) + direction * height;
-                                let ref first = stance.lerp(center, factor);
-                                let ref second = center.lerp(next, factor);
-                                first.lerp(second, factor)
-                            };
-
-                            let rotation = transforms
-                                .get(entity)
-                                .unwrap()
-                                .rotation()
-                                .clone();
-
-                            let ref factor = Cubic::ease_in_out(time, 0.0, 1.0, flight_time);
-                            let angle = {
-                                let max_step_length = limb.config.step_limit[1];
-                                let ref center = FRAC_PI_2 * step_length / max_step_length;
-                                let ref first = 0.0.lerp(center, factor);
-                                let ref second = center.lerp(&0.0, factor);
-                                first.lerp(second, factor)
-                            };
-
-                            transforms
-                                .get_mut(limb.foot)
-                                .unwrap()
-                                .set_translation(translation)
-                                .set_rotation(rotation)
-                                .append_rotation_x_axis(angle);
-
-                            State::Flight { stance: stance.xyz().into(), time: delta_seconds + time }
-                        } else {
-                            transforms
-                                .get_mut(limb.foot)
-                                .unwrap()
-                                .set_translation(next.coords);
-                            State::Stance
-                        }
-                    }
-                }
+                Self::process_limb(
+                    entity,
+                    limb,
+                    player,
+                    time.delta_seconds(),
+                    &mut transforms,
+                    &mut debug_lines,
+                );
             }
         }
     }
