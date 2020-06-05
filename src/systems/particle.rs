@@ -117,14 +117,6 @@ impl<'a> System<'a> for ParticleSystem {
 
     fn run(&mut self, (entities, parents, transforms, deforms, bodies, physics_world, time): Self::SystemData) {
         for (entity, deform) in (&*entities, &deforms).join() {
-            if deform.targets
-                .iter()
-                .any(|child| parents
-                    .get(*child)
-                    .map(|parent| parent.entity != entity)
-                    .unwrap_or(true)
-                ) { continue; }
-
             // Targets matches rigid bodies.
             let targets: Vec<_> = if parents.get(entity).is_none() {
                 let origins = deform.targets
