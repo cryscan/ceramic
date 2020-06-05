@@ -1,3 +1,5 @@
+use std::convert::identity;
+
 use amethyst::{
     assets::PrefabData,
     core::{math::Point3, Parent, Transform},
@@ -130,28 +132,26 @@ impl<'a> System<'a> for ParticleSystem {
                     .map(|entity| transforms
                         .get(*entity)
                         .map(|transform| transform.global_position()))
-                    .filter_map(|x| x)
-                    .fold(vec![], |mut vector, point| {
-                        vector.append(&mut vec![point.x, point.y, point.z]);
-                        vector
-                    });
+                    .filter_map(identity)
+                    .map(|point| vec![point.x, point.y, point.z])
+                    .flatten()
+                    .collect();
                 let targets = deform.vertices
                     .iter()
                     .map(|entity| transforms
                         .get(*entity)
                         .map(|transform| transform.global_position()))
-                    .filter_map(|x| x)
-                    .fold(vec![], |mut vector, point| {
-                        vector.append(&mut vec![point.x, point.y, point.z]);
-                        vector
-                    });
+                    .filter_map(identity)
+                    .map(|point| vec![point.x, point.y, point.z])
+                    .flatten()
+                    .collect();
                 let (translation, rotation) = match_shape(origins, targets, 0.01, 10);
                 deform.targets
                     .iter()
                     .map(|entity| transforms
                         .get(*entity)
                         .map(|transform| transform.global_position()))
-                    .filter_map(|x| x)
+                    .filter_map(identity)
                     .map(|ref point| rotation.transform_point(point))
                     .map(|point| point + translation)
                     .collect()
@@ -161,7 +161,7 @@ impl<'a> System<'a> for ParticleSystem {
                     .map(|entity| transforms
                         .get(*entity)
                         .map(|transform| transform.global_position()))
-                    .filter_map(|x| x)
+                    .filter_map(identity)
                     .collect()
             };
 
