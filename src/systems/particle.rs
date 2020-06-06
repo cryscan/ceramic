@@ -1,8 +1,6 @@
-use std::convert::identity;
-
 use amethyst::{
     assets::PrefabData,
-    core::{math::Point3, Parent, Transform},
+    core::{math::Point3, Transform},
     derive::SystemDesc,
     ecs::{Component, prelude::*},
     error::Error,
@@ -15,7 +13,7 @@ use redirect::Redirect;
 
 use crate::{
     scene::RedirectField,
-    utils::{match_shape, transform::TransformTrait},
+    utils::transform::TransformTrait,
 };
 
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
@@ -54,26 +52,23 @@ impl<'a> PrefabData<'a> for ParticlePrefab {
 
 #[derive(Debug, Clone, Component)]
 #[storage(DenseVecStorage)]
-pub struct Deform {
-    targets: Vec<Entity>,
-    vertices: Vec<Entity>,
+pub struct Spring {
+    target: Entity,
     stiffness: f32,
     damp: f32,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, Redirect)]
-#[serde(default)]
-pub struct DeformPrefab {
-    pub targets: Vec<RedirectField>,
-    pub vertices: Vec<RedirectField>,
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
+pub struct SpringPrefab {
+    pub target: RedirectField,
     #[redirect(skip)]
     pub stiffness: f32,
     #[redirect(skip)]
     pub damp: f32,
 }
 
-impl<'a> PrefabData<'a> for DeformPrefab {
-    type SystemData = WriteStorage<'a, Deform>;
+impl<'a> PrefabData<'a> for SpringPrefab {
+    type SystemData = WriteStorage<'a, Spring>;
     type Result = ();
 
     fn add_to_entity(
@@ -83,17 +78,8 @@ impl<'a> PrefabData<'a> for DeformPrefab {
         entities: &[Entity],
         _children: &[Entity],
     ) -> Result<Self::Result, Error> {
-        let targets = self.targets
-            .iter()
-            .map(|field| field.clone().into_entity(entities))
-            .collect();
-        let vertices = self.vertices
-            .iter()
-            .map(|field| field.clone().into_entity(entities))
-            .collect();
-        let component = Deform {
-            targets,
-            vertices,
+        let component = Spring {
+            target: self.target.clone().into_entity(entities),
             stiffness: self.stiffness,
             damp: self.damp,
         };
@@ -106,75 +92,32 @@ pub struct ParticleSystem;
 
 impl<'a> System<'a> for ParticleSystem {
     type SystemData = (
-        Entities<'a>,
-        ReadStorage<'a, Parent>,
         ReadStorage<'a, Transform>,
-        ReadStorage<'a, Deform>,
+        ReadStorage<'a, Spring>,
         ReadStorage<'a, PhysicsHandle<PhysicsRigidBodyTag>>,
         ReadExpect<'a, PhysicsWorld<f32>>,
         ReadExpect<'a, PhysicsTime>,
     );
 
-    fn run(&mut self, (entities, parents, transforms, deforms, bodies, physics_world, time): Self::SystemData) {
-        for (entity, deform) in (&*entities, &deforms).join() {
-            // Targets matches rigid bodies.
-            let targets: Vec<_> = if parents.get(entity).is_none() {
-                let origins = deform.targets
-                    .iter()
-                    .map(|entity| transforms
-                        .get(*entity)
-                        .map(|transform| transform.global_position()))
-                    .filter_map(identity)
-                    .map(|point| vec![point.x, point.y, point.z])
-                    .flatten()
-                    .collect();
-                let targets = deform.vertices
-                    .iter()
-                    .map(|entity| transforms
-                        .get(*entity)
-                        .map(|transform| transform.global_position()))
-                    .filter_map(identity)
-                    .map(|point| vec![point.x, point.y, point.z])
-                    .flatten()
-                    .collect();
-                let (translation, rotation) = match_shape(origins, targets, 0.01, 10);
-                deform.targets
-                    .iter()
-                    .map(|entity| transforms
-                        .get(*entity)
-                        .map(|transform| transform.global_position()))
-                    .filter_map(identity)
-                    .map(|ref point| rotation.transform_point(point))
-                    .map(|point| point + translation)
-                    .collect()
-            } else {
-                deform.targets
-                    .iter()
-                    .map(|entity| transforms
-                        .get(*entity)
-                        .map(|transform| transform.global_position()))
-                    .filter_map(identity)
-                    .collect()
-            };
-
-            // Rigid bodies matches targets.
-            for (target, vertex) in targets.iter().zip(deform.vertices.iter()) {
-                if let Some(body) = bodies.get(*vertex) {
-                    let position = Point3::from(
-                        physics_world
-                            .rigid_body_server()
-                            .transform(body.get())
-                            .translation
-                            .vector
-                    );
-                    let ref impulse = (target - position).scale(deform.stiffness / time.delta_seconds());
-                    physics_world.rigid_body_server().apply_impulse(body.get(), impulse);
-
-                    let velocity = physics_world.rigid_body_server().linear_velocity(body.get());
-                    let ref force = velocity.scale(-deform.damp);
-                    physics_world.rigid_body_server().apply_force(body.get(), force);
-                }
+    fn run(&mut self, (transforms, springs, bodies, physics_world, time): Self::SystemData) {
+        for (spring, body) in (&springs, &bodies).join() {
+            if let Some(target) = transforms
+                .get(spring.target)
+                .map(|transform| transform.global_position()) {
+                let position = Point3::from(
+                    physics_world
+                        .rigid_body_server()
+                        .transform(body.get())
+                        .translation
+                        .vector
+                );
+                let ref impulse = (target - position).scale(spring.stiffness / time.delta_seconds());
+                physics_world.rigid_body_server().apply_impulse(body.get(), impulse);
             }
+
+            let velocity = physics_world.rigid_body_server().linear_velocity(body.get());
+            let ref damp = velocity.scale(-spring.damp);
+            physics_world.rigid_body_server().apply_force(body.get(), damp);
         }
     }
 }
