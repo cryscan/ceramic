@@ -28,14 +28,14 @@ pub struct Player {
     acceleration: f32,
 
     #[serde(skip, default = "Vector3::zero")]
-    translation: Vector3<f32>,
+    movement: Vector3<f32>,
     #[serde(skip, default = "UnitQuaternion::identity")]
-    rotation: UnitQuaternion<f32>,
+    spinning: UnitQuaternion<f32>,
 }
 
 impl Player {
     pub fn velocity(&self) -> Vector3<f32> {
-        self.translation.scale(self.linear_speed)
+        self.movement.scale(self.linear_speed)
     }
 }
 
@@ -56,14 +56,14 @@ impl<'a> System<'a> for PlayerSystem {
 
     fn run(&mut self, (mut players, mut transforms, input, time): Self::SystemData) {
         for (player, transform) in (&mut players, &mut transforms).join() {
-            let translation = Vector3::new(
+            let movement = Vector3::new(
                 0.0,
                 0.0,
                 input.axis_value("move_z").unwrap_or(0.0),
             )
                 .try_normalize(EPSILON)
                 .unwrap_or(Vector3::zero());
-            let rotation = UnitQuaternion::from_euler_angles(
+            let spinning = UnitQuaternion::from_euler_angles(
                 0.0,
                 player.angular_speed * input.axis_value("move_x").unwrap_or(0.0),
                 0.0,
@@ -75,11 +75,11 @@ impl<'a> System<'a> for PlayerSystem {
             player.linear_speed = player.linear_speed.min(max).max(min);
 
             let decay = 1.0 - (-player.stiffness * delta_seconds).exp();
-            player.translation += decay * (translation - player.translation.clone());
-            player.rotation *= (player.rotation.inverse() * rotation).powf(decay);
+            player.movement += decay * (movement - player.movement.clone());
+            player.spinning *= (player.spinning.inverse() * spinning).powf(decay);
 
-            transform.append_translation(delta_seconds * player.linear_speed * &player.translation);
-            if let Some((axis, angle)) = player.rotation.axis_angle() {
+            transform.append_translation(delta_seconds * player.linear_speed * &player.movement);
+            if let Some((axis, angle)) = player.spinning.axis_angle() {
                 transform.append_rotation(axis, angle * delta_seconds);
             }
         }

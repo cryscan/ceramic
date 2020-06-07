@@ -6,7 +6,7 @@ use std::{
 
 use amethyst::{
     assets::PrefabData,
-    core::{math::{Complex, Point3, UnitQuaternion, Vector3}, Transform},
+    core::{math::{Complex, Point3, Vector3}, Transform},
     ecs::{Component, prelude::*, storage::MaskedStorage},
     error::Error,
 };
@@ -17,7 +17,8 @@ pub use bounce::BounceSystem;
 use ceramic_derive::Redirect;
 pub use locomotion::{LocomotionSystem, OscillatorSystem};
 use redirect::Redirect;
-pub use track::TrackSystem;
+pub use tail::{TailPrefab, TailSystem};
+pub use track::{TrackerPrefab, TrackSystem};
 
 use crate::{scene::RedirectField};
 use crate::utils::transform::TransformTrait;
@@ -27,45 +28,7 @@ use super::player::Player;
 pub mod bounce;
 pub mod locomotion;
 pub mod track;
-
-#[derive(Debug, Copy, Clone, Component)]
-#[storage(DenseVecStorage)]
-pub struct Tracker {
-    target: Entity,
-    limit: Option<f32>,
-    speed: f32,
-    rotation: Option<UnitQuaternion<f32>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
-pub struct TrackerPrefab {
-    pub target: RedirectField,
-    #[redirect(skip)]
-    pub limit: Option<f32>,
-    #[redirect(skip)]
-    pub speed: f32,
-}
-
-impl<'a> PrefabData<'a> for TrackerPrefab {
-    type SystemData = WriteStorage<'a, Tracker>;
-    type Result = ();
-
-    fn add_to_entity(
-        &self,
-        entity: Entity,
-        data: &mut Self::SystemData,
-        entities: &[Entity],
-        _children: &[Entity],
-    ) -> Result<Self::Result, Error> {
-        let component = Tracker {
-            target: self.target.clone().into_entity(entities),
-            limit: self.limit.clone(),
-            speed: self.speed,
-            rotation: None,
-        };
-        data.insert(entity, component).map(|_| ()).map_err(Into::into)
-    }
-}
+pub mod tail;
 
 #[derive(Debug, Copy, Clone)]
 enum State {
@@ -229,7 +192,7 @@ fn limb_velocity<D>(
     let root = transforms.get(entity)?.global_position();
 
     let ref radial = home - root;
-    let ref angular = player.rotation().scaled_axis();
+    let ref angular = player.spinning().scaled_axis();
     let ref linear = player.velocity();
 
     let transform = transforms.get(entity)?.global_matrix();

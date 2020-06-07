@@ -6,6 +6,7 @@ use amethyst::{
     error::Error,
 };
 use amethyst_physics::prelude::*;
+use getset::Setters;
 use serde::{Deserialize, Serialize};
 
 use ceramic_derive::Redirect;
@@ -50,11 +51,13 @@ impl<'a> PrefabData<'a> for ParticlePrefab {
     }
 }
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Copy, Clone, Setters, Component)]
 #[storage(DenseVecStorage)]
 pub struct Spring {
     target: Entity,
+    #[set = "pub"]
     stiffness: f32,
+    #[set = "pub"]
     damp: f32,
 }
 

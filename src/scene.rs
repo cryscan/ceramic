@@ -13,7 +13,7 @@ use ceramic_derive::Redirect;
 use redirect::Redirect;
 
 use crate::systems::{
-    animal::{QuadrupedPrefab, TrackerPrefab},
+    animal::{QuadrupedPrefab, TailPrefab, TrackerPrefab},
     kinematics::{ChainPrefab, ConstrainPrefab},
     particle::{ParticlePrefab, SpringPrefab},
     player::Player,
@@ -53,6 +53,7 @@ pub struct Extras {
     player: Option<Player>,
     quadruped: Option<QuadrupedPrefab>,
     tracker: Option<TrackerPrefab>,
+    tail: Option<TailPrefab>,
     chain: Option<ChainPrefab>,
     constrain: Option<ConstrainPrefab>,
     #[redirect(skip)]

@@ -20,7 +20,7 @@ use crate::{
     scene::SceneLoaderSystemDesc,
     state::load::LoadState,
     systems::{
-        animal::{BounceSystem, LocomotionSystem, OscillatorSystem, TrackSystem},
+        animal::{BounceSystem, LocomotionSystem, OscillatorSystem, TailSystem, TrackSystem},
         kinematics::KinematicsBundle,
         particle::ParticleSystem,
         player::PlayerSystem,
@@ -79,6 +79,7 @@ fn main() -> amethyst::Result<()> {
             "sampler_interpolation",
         ]))?
         .with_bundle(KinematicsBundle::new(2, 0.01))?
+        .with(TailSystem::default(), "tail", &[])
         .with(TrackSystem::default(), "track", &["transform_system"])
         .with(BounceSystem::default(), "bounce", &["transform_system"])
         .with(LocomotionSystem::default(), "locomotion", &["transform_system"])

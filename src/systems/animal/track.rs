@@ -1,14 +1,60 @@
 use std::f32::{consts::FRAC_PI_2, EPSILON};
 
 use amethyst::{
+    assets::PrefabData,
     core::{math::{UnitQuaternion, Vector3}, Time, Transform},
     derive::SystemDesc,
-    ecs::prelude::*,
+    ecs::{Component, prelude::*},
+    error::Error,
+};
+use serde::{Deserialize, Serialize};
+
+use ceramic_derive::Redirect;
+use redirect::Redirect;
+
+use crate::{
+    scene::RedirectField,
+    utils::transform::TransformTrait,
 };
 
-use crate::utils::transform::TransformTrait;
+#[derive(Debug, Copy, Clone, Component)]
+#[storage(DenseVecStorage)]
+pub struct Tracker {
+    target: Entity,
+    limit: Option<f32>,
+    speed: f32,
+    rotation: Option<UnitQuaternion<f32>>,
+}
 
-use super::Tracker;
+#[derive(Debug, Clone, Serialize, Deserialize, Redirect)]
+pub struct TrackerPrefab {
+    pub target: RedirectField,
+    #[redirect(skip)]
+    pub limit: Option<f32>,
+    #[redirect(skip)]
+    pub speed: f32,
+}
+
+impl<'a> PrefabData<'a> for TrackerPrefab {
+    type SystemData = WriteStorage<'a, Tracker>;
+    type Result = ();
+
+    fn add_to_entity(
+        &self,
+        entity: Entity,
+        data: &mut Self::SystemData,
+        entities: &[Entity],
+        _children: &[Entity],
+    ) -> Result<Self::Result, Error> {
+        let component = Tracker {
+            target: self.target.clone().into_entity(entities),
+            limit: self.limit.clone(),
+            speed: self.speed,
+            rotation: None,
+        };
+        data.insert(entity, component).map(|_| ()).map_err(Into::into)
+    }
+}
 
 #[derive(Default, SystemDesc)]
 pub struct TrackSystem;
