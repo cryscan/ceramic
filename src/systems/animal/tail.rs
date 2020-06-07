@@ -4,7 +4,7 @@ use amethyst::{
     ecs::{Component, prelude::*},
     error::Error,
 };
-use easer::functions::{Easing, Linear};
+use easer::functions::{Easing, Expo};
 use serde::{Deserialize, Serialize};
 
 use ceramic_derive::Redirect;
@@ -64,7 +64,7 @@ impl<'a> System<'a> for TailSystem {
                 let speed = player.velocity().norm();
                 let [min, max] = player.speed_limit();
                 let [loose, tight] = tail.stiffness;
-                let stiffness = Linear::ease_in_out(speed - min, loose, tight - loose, max - min);
+                let stiffness = Expo::ease_in(speed - min, loose, tight - loose, max - min);
                 spring.set_stiffness(stiffness);
             }
         }
