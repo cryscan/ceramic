@@ -3,6 +3,8 @@ Procedural animation written in Rust using [Amethyst Engine](https://amethyst.rs
 
 [![Watch the video](docs/Screencast.png)](https://youtu.be/FEjZrpEKXcA)
 
+There is also a [video](https://github.com/cryscan/ceramic/blob/master/preview.mp4) showing the final results in the repository.
+
 ## Compile and Run
 To compile, use the following command:
 ```shell script
